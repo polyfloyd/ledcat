@@ -80,7 +80,7 @@ fn main() {
     let limit_framerate = framerate_limiter(matches.value_of("framerate"));
 
     let dev = match device_type {
-        "apa102" => device::apa102::Apa102{},
+        "apa102" => device::apa102::Apa102{ grayscale: 0b11111 },
         _ => {
             println!("Unknown device type: {}", device_type);
             return;

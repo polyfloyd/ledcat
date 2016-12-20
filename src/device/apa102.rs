@@ -3,7 +3,10 @@ use std::thread;
 use std::time;
 use device::*;
 
-pub struct Apa102 { }
+pub struct Apa102 {
+    /// 5-bit grayscale value to apply to all pixels.
+    pub grayscale: u8,
+}
 
 impl Device for Apa102 {
 
@@ -24,7 +27,7 @@ impl Device for Apa102 {
     }
 
     fn write_pixel(&self, writer: &mut io::Write, pixel: &Pixel) -> io::Result<()> {
-        writer.write_all(&[0xff, pixel.r, pixel.g, pixel.b])
+        writer.write_all(&[0b11100000 | self.grayscale, pixel.r, pixel.g, pixel.b])
     }
 
     fn begin_frame(&self, writer: &mut io::Write) -> io::Result<()> {
