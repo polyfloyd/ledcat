@@ -10,24 +10,10 @@ use std::time;
 use device::*;
 use driver::*;
 
-
-fn apa102_write_pixel(writer: &mut io::Write, pixel: &Pixel) -> io::Result<()> {
-    writer.write_all(&[0xff, pixel.r, pixel.g, pixel.b])
-}
-
-fn apa102_begin_frame(writer: &mut io::Write) -> io::Result<()> {
-    writer.write_all(&[0x00; 4])
-}
-
-fn apa102_end_frame(_: &mut io::Write) -> io::Result<()> {
-    std::thread::sleep(time::Duration::new(0, 500_000));
-    Ok(())
-}
-
 fn is_int(s: String) -> Result<(), String> {
     match s.parse::<u64>() {
         Ok(_)  => Ok(()),
-        Err(_) => Err("Value is not a positive integer".to_string())
+        Err(_) => Err("Value is not a positive integer".to_string()),
     }
 }
 
@@ -93,32 +79,29 @@ fn main() {
     let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
     let limit_framerate = framerate_limiter(matches.value_of("framerate"));
 
-
-    let apa102 = Device {
-        clock_phase:    0,
-        clock_polarity: 0,
-        speed_hz:       500_000,
-        first_bit:      FirstBit::MSB,
-        write_pixel:    apa102_write_pixel,
-        begin_frame:    apa102_begin_frame,
-        end_frame:      apa102_end_frame,
+    let dev = match device_type {
+        "apa102" => device::apa102::Apa102{},
+        _ => {
+            println!("Unknown device type: {}", device_type);
+            return;
+        },
     };
-    let mut out = spidev::open(output_file, &apa102).unwrap();
+    let mut out = spidev::open(output_file, &dev).unwrap();
 
     loop {
         // Read a full frame into a buffer. This prevents half frames being written to a
         // potentially timing sensitive output if the input blocks.
-        let mut buffer: Vec<Pixel> = Vec::with_capacity(num_pixels);
+        let mut buffer = Vec::with_capacity(num_pixels);
         let mut input = io::stdin();
         for _ in 0..num_pixels {
             buffer.push(Pixel::read_rgb24(&mut input).unwrap());
         }
 
-        (apa102.begin_frame)(&mut out).unwrap();
+        dev.begin_frame(&mut out).unwrap();
         for i in 0..num_pixels {
-            (apa102.write_pixel)(&mut out, &buffer[i]).unwrap();
+            dev.write_pixel(&mut out, &buffer[i]).unwrap();
         }
-        (apa102.end_frame)(&mut out).unwrap();
+        dev.end_frame(&mut out).unwrap();
 
         limit_framerate();
     }

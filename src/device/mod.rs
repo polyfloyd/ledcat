@@ -1,16 +1,17 @@
 use std::io;
 
+pub mod apa102;
+
 pub enum FirstBit { LSB, MSB }
 
-pub struct Device {
-    pub clock_phase:    u8,
-    pub clock_polarity: u8,
-    pub first_bit:      FirstBit,
-    pub speed_hz:       u32,
-
-    pub write_pixel: fn(&mut io::Write, &Pixel) -> io::Result<()>,
-    pub begin_frame: fn(&mut io::Write) -> io::Result<()>,
-    pub end_frame:   fn(&mut io::Write) -> io::Result<()>,
+pub trait Device {
+    fn clock_phase(&self) -> u8;
+    fn clock_polarity(&self) -> u8;
+    fn first_bit(&self) -> FirstBit;
+    fn speed_hz(&self) -> u32;
+    fn write_pixel(&self, &mut io::Write, &Pixel) -> io::Result<()>;
+    fn begin_frame(&self, &mut io::Write) -> io::Result<()>;
+    fn end_frame(&self, &mut io::Write) -> io::Result<()>;
 }
 
 pub struct Pixel {
