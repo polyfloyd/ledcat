@@ -1,0 +1,8 @@
+[package]
+name = "ledcat"
+version = "0.0.1"
+authors = ["polyfloyd <floyd@polyfloyd.net>"]
+
+[dependencies]
+clap = "*"
+ioctl = "*"
