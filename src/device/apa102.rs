@@ -26,15 +26,11 @@ impl Device for Apa102 {
         500_000
     }
 
-    fn write_pixel(&self, writer: &mut io::Write, pixel: &Pixel) -> io::Result<()> {
-        writer.write_all(&[0b11100000 | self.grayscale, pixel.r, pixel.g, pixel.b])
-    }
-
-    fn begin_frame(&self, writer: &mut io::Write) -> io::Result<()> {
-        writer.write_all(&[0x00; 4])
-    }
-
-    fn end_frame(&self, _: &mut io::Write) -> io::Result<()> {
+    fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
+        try!(writer.write_all(&[0x00; 4]));
+        for pix in pixels {
+            try!(writer.write_all(&[0b11100000 | self.grayscale, pix.r, pix.g, pix.b]));
+        }
         thread::sleep(time::Duration::new(0, 500_000));
         Ok(())
     }

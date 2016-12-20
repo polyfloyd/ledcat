@@ -96,13 +96,7 @@ fn main() {
         for _ in 0..num_pixels {
             buffer.push(Pixel::read_rgb24(&mut input).unwrap());
         }
-
-        dev.begin_frame(&mut out).unwrap();
-        for i in 0..num_pixels {
-            dev.write_pixel(&mut out, &buffer[i]).unwrap();
-        }
-        dev.end_frame(&mut out).unwrap();
-
+        dev.write_frame(&mut out, &buffer).unwrap();
         limit_framerate();
     }
 }
