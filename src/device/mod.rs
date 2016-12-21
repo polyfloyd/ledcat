@@ -8,7 +8,6 @@ pub trait Device {
     fn clock_phase(&self) -> u8;
     fn clock_polarity(&self) -> u8;
     fn first_bit(&self) -> FirstBit;
-    fn speed_hz(&self) -> u32;
     fn write_frame(&self, &mut io::Write, &[Pixel]) -> io::Result<()>;
 }
 

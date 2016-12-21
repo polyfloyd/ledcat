@@ -22,10 +22,6 @@ impl Device for Apa102 {
         FirstBit::MSB
     }
 
-    fn speed_hz(&self) -> u32 {
-        500_000
-    }
-
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         try!(writer.write_all(&[0x00; 4]));
         for pix in pixels {

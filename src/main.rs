@@ -86,7 +86,7 @@ fn main() {
             return;
         },
     };
-    let mut out = spidev::open(output_file, &dev).unwrap();
+    let mut out = spidev::open(output_file, dev.borrow(), 4_000_000).unwrap();
 
     loop {
         // Read a full frame into a buffer. This prevents half frames being written to a
