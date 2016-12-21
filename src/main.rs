@@ -5,6 +5,7 @@ extern crate ioctl;
 mod device;
 mod driver;
 
+use std::borrow::Borrow;
 use std::io;
 use std::time;
 use device::*;
@@ -79,8 +80,10 @@ fn main() {
     let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
     let limit_framerate = framerate_limiter(matches.value_of("framerate"));
 
-    let dev = match device_type {
-        "apa102" => device::apa102::Apa102{ grayscale: 0b11111 },
+    let dev: Box<Device> = match device_type {
+        "apa102"  => Box::new(device::apa102::Apa102{ grayscale: 0b11111 }),
+        "lpd8803" |
+        "lpd8806" => Box::new(device::lpd8806::Lpd8806{}),
         _ => {
             println!("Unknown device type: {}", device_type);
             return;

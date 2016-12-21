@@ -1,6 +1,7 @@
 use std::io;
 
 pub mod apa102;
+pub mod lpd8806;
 
 pub enum FirstBit { LSB, MSB }
 
@@ -21,10 +22,8 @@ impl Pixel {
 
     pub fn read_rgb24(reader: &mut io::Read) -> io::Result<Pixel> {
         let mut pixbuf: [u8; 3] = [0; 3];
-        match reader.read_exact(&mut pixbuf) {
-            Ok(_)  => Ok(Pixel{ b: pixbuf[0], g: pixbuf[1], r: pixbuf[2] }),
-            Err(e) => Err(e),
-        }
+        try!(reader.read_exact(&mut pixbuf));
+        Ok(Pixel{ b: pixbuf[0], g: pixbuf[1], r: pixbuf[2] })
     }
 
 }
