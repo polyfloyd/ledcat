@@ -66,6 +66,10 @@ fn main() {
             .takes_value(true)
             .validator(is_int)
             .help("Limit the number of frames per second"))
+        .arg(clap::Arg::with_name("single-frame")
+            .short("1")
+            .long("one")
+            .help("Send a single frame to the output and exit"))
         .get_matches();
 
     let device_type = matches.value_of("type").unwrap();
@@ -79,6 +83,7 @@ fn main() {
     };
     let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
     let limit_framerate = framerate_limiter(matches.value_of("framerate"));
+    let single_frame = matches.is_present("single-frame");
 
     let dev: Box<Device> = match device_type {
         "apa102"  => Box::new(device::apa102::Apa102{ grayscale: 0b11111 }),
@@ -91,15 +96,19 @@ fn main() {
     };
     let mut out = spidev::open(output_file, dev.borrow(), 4_000_000).unwrap();
 
+    let mut input = io::stdin();
     loop {
         // Read a full frame into a buffer. This prevents half frames being written to a
         // potentially timing sensitive output if the input blocks.
         let mut buffer = Vec::with_capacity(num_pixels);
-        let mut input = io::stdin();
         for _ in 0..num_pixels {
             buffer.push(Pixel::read_rgb24(&mut input).unwrap());
         }
         dev.write_frame(&mut out, &buffer).unwrap();
         limit_framerate();
+
+        if single_frame {
+            break;
+        }
     }
 }
