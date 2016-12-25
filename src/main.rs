@@ -50,10 +50,11 @@ fn main() {
             .required(true)
             .takes_value(true)
             .validator(is_int)
+            .value_name("num pixels")
             .help("The number of pixels in the string"))
         .arg(clap::Arg::with_name("driver")
             .long("driver")
-            .help("The driver to use for the output. If this is not specified, the driver is automaticaly detected."))
+            .help("The driver to use for the output. If this is not specified, the driver is automaticaly detected based on the output"))
         .arg(clap::Arg::with_name("output")
             .short("o")
             .long("output")
@@ -69,6 +70,7 @@ fn main() {
         .arg(clap::Arg::with_name("single-frame")
             .short("1")
             .long("one")
+            .conflicts_with("framerate")
             .help("Send a single frame to the output and exit"))
         .get_matches();
 
