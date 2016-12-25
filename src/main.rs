@@ -89,6 +89,7 @@ fn main() {
         "apa102"  => Box::new(device::apa102::Apa102{ grayscale: 0b11111 }),
         "lpd8803" |
         "lpd8806" => Box::new(device::lpd8806::Lpd8806{}),
+        "raw"     => Box::new(device::raw::Raw::default()),
         _ => {
             println!("Unknown device type: {}", device_type);
             return;

@@ -2,7 +2,9 @@ use std::io;
 
 pub mod apa102;
 pub mod lpd8806;
+pub mod raw;
 
+#[derive(Clone)]
 pub enum FirstBit { LSB, MSB }
 
 pub trait Device {
