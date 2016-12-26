@@ -6,6 +6,7 @@ mod device;
 mod driver;
 
 use std::borrow::Borrow;
+use std::collections;
 use std::io;
 use std::time;
 use device::*;
@@ -33,17 +34,16 @@ fn detect_driver<'f>(file: &'f str) -> &'static str {
 }
 
 fn main() {
-    let matches = clap::App::new("ledcat")
+    let mut cli = clap::App::new("ledcat")
         .version("0.0.1")
         .author("polyfloyd <floyd@polyfloyd.net>")
         .about("Like netcat, but for leds.")
-        .arg(clap::Arg::with_name("type")
-            .short("t")
-            .long("type")
-            .required(true)
+        .arg(clap::Arg::with_name("output")
+            .short("o")
+            .long("output")
             .takes_value(true)
-            .value_name("device type")
-            .help("The led-device type"))
+            .default_value("-")
+            .help("The output file to write to. Use - for stdout."))
         .arg(clap::Arg::with_name("pixels")
             .short("n")
             .long("pixels")
@@ -55,12 +55,6 @@ fn main() {
         .arg(clap::Arg::with_name("driver")
             .long("driver")
             .help("The driver to use for the output. If this is not specified, the driver is automaticaly detected based on the output"))
-        .arg(clap::Arg::with_name("output")
-            .short("o")
-            .long("output")
-            .takes_value(true)
-            .default_value("-")
-            .help("The output file to write to. Use - for stdout."))
         .arg(clap::Arg::with_name("framerate")
             .short("f")
             .long("framerate")
@@ -71,10 +65,17 @@ fn main() {
             .short("1")
             .long("one")
             .conflicts_with("framerate")
-            .help("Send a single frame to the output and exit"))
-        .get_matches();
+            .help("Send a single frame to the output and exit")));
 
-    let device_type = matches.value_of("type").unwrap();
+    let mut device_constructors = collections::HashMap::new();
+    for device_init in device::devices() {
+        device_constructors.insert(device_init.0.get_name().to_string(), device_init.1);
+        cli = cli.subcommand(device_init.0);
+    }
+    let matches = cli.get_matches();
+    let (sub_name, sub_matches) = matches.subcommand();
+
+    let dev = device_constructors[sub_name](sub_matches.unwrap());
     let output_file = match matches.value_of("output").unwrap() {
         "-" => "/dev/stdout",
         _   => matches.value_of("output").unwrap(),
@@ -87,16 +88,6 @@ fn main() {
     let limit_framerate = framerate_limiter(matches.value_of("framerate"));
     let single_frame = matches.is_present("single-frame");
 
-    let dev: Box<Device> = match device_type {
-        "apa102"  => Box::new(device::apa102::Apa102{ grayscale: 0b11111 }),
-        "lpd8803" |
-        "lpd8806" => Box::new(device::lpd8806::Lpd8806{}),
-        "raw"     => Box::new(device::raw::Raw::default()),
-        _ => {
-            println!("Unknown device type: {}", device_type);
-            return;
-        },
-    };
     let mut out = spidev::open(output_file, dev.borrow(), 4_000_000).unwrap();
 
     let mut input = io::stdin();

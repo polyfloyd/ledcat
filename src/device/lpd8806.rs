@@ -1,4 +1,5 @@
 use std::io;
+use clap;
 use device::*;
 
 pub struct Lpd8806 { }
@@ -30,4 +31,12 @@ impl Device for Lpd8806 {
         writer.write_all(&[0x00; 50])
     }
 
+}
+
+pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
+    clap::SubCommand::with_name("lpd8806")
+}
+
+pub fn from_command(_: &clap::ArgMatches) -> Box<Device> {
+    Box::new(Lpd8806{})
 }

@@ -1,4 +1,5 @@
 use std::io;
+use clap;
 
 pub mod apa102;
 pub mod lpd8806;
@@ -28,4 +29,12 @@ impl Pixel {
         Ok(Pixel{ b: pixbuf[0], g: pixbuf[1], r: pixbuf[2] })
     }
 
+}
+
+pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, fn(&clap::ArgMatches) -> Box<Device>)> {
+    vec![
+        (apa102::command(), apa102::from_command),
+        (lpd8806::command(), lpd8806::from_command),
+        (raw::command(), raw::from_command),
+    ]
 }
