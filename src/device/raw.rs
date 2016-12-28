@@ -34,19 +34,19 @@ impl Device for Raw {
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
     clap::SubCommand::with_name("raw")
         .about("Output data as RGB24")
-        .arg(clap::Arg::with_name("clock phase")
+        .arg(clap::Arg::with_name("clock-phase")
              .short("a")
              .long("cpha")
              .takes_value(true)
              .possible_values(&["0", "1"])
              .help("Clock phase"))
-        .arg(clap::Arg::with_name("clock polarity")
+        .arg(clap::Arg::with_name("clock-polarity")
              .short("o")
              .long("cpol")
              .takes_value(true)
              .possible_values(&["0", "1"])
              .help("Clock polarity"))
-        .arg(clap::Arg::with_name("first bit")
+        .arg(clap::Arg::with_name("first-bit")
              .short("b")
              .long("firstbit")
              .takes_value(true)
@@ -55,9 +55,9 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
 }
 
 pub fn from_command(args: &clap::ArgMatches) -> Box<Device> {
-    let cpha = args.value_of("clock phase").unwrap_or("0").parse::<u8>().unwrap();
-    let cpol = args.value_of("clock polarity").unwrap_or("0").parse::<u8>().unwrap();
-    let fb = match args.value_of("first bit").unwrap_or("msb") {
+    let cpha = args.value_of("clock-phase").unwrap_or("0").parse::<u8>().unwrap();
+    let cpol = args.value_of("clock-polarity").unwrap_or("0").parse::<u8>().unwrap();
+    let fb = match args.value_of("first-bit").unwrap_or("msb") {
         "msb" => FirstBit::MSB,
         _     => FirstBit::LSB,
     };
