@@ -1,13 +1,16 @@
 extern crate clap;
 #[macro_use]
 extern crate ioctl;
+extern crate regex;
 
 mod device;
 mod driver;
 
-use std::borrow::Borrow;
 use std::collections;
 use std::io;
+use std::net;
+use std::path;
+use std::str::FromStr;
 use std::time;
 use device::*;
 use driver::*;
@@ -27,10 +30,6 @@ fn framerate_limiter(opt: Option<&str>) -> Box<Fn()> {
         },
         None => return Box::new(|| ()),
     };
-}
-
-fn detect_driver<'f>(file: &'f str) -> &'static str {
-    "spidev"
 }
 
 fn main() {
@@ -80,10 +79,18 @@ fn main() {
         "-" => "/dev/stdout",
         _   => matches.value_of("output").unwrap(),
     };
+    let output_file = path::PathBuf::from(output_file);
+
     let driver_name = match matches.value_of("driver") {
-        Some(driver) => driver,
-        None         => detect_driver(output_file),
+        Some(driver) => Some(driver.to_string()),
+        None         => driver::detect(&output_file),
     };
+    if driver_name.is_none() {
+        println!("Unable to determine the driver to use. Please set one using --driver.");
+        return;
+    }
+    let driver_name = driver_name.unwrap();
+
     let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
     let limit_framerate = framerate_limiter(matches.value_of("framerate"));
     let single_frame = matches.is_present("single-frame");

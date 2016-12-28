@@ -6,3 +6,4 @@ authors = ["polyfloyd <floyd@polyfloyd.net>"]
 [dependencies]
 clap = "*"
 ioctl = "*"
+regex = "*"

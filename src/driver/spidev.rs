@@ -1,7 +1,9 @@
-use device::*;
 use std::fs;
 use std::io;
 use std::os::unix::io::AsRawFd;
+use std::path;
+use regex;
+use device::*;
 
 ioctl!(write spi_ioc_wr_mode with b'k', 1; u8);
 ioctl!(write spi_ioc_wr_lsb_first with b'k', 2; u8);
@@ -24,4 +26,28 @@ pub fn open<'f>(path: &'f str, dev: &Device, speed_hz: u32) -> io::Result<Box<io
     }
 
     Ok(Box::new(spidev))
+}
+
+fn read_link_recursive(path: path::PathBuf) -> io::Result<path::PathBuf> {
+    match fs::read_link(&path) {
+        Ok(path) => read_link_recursive(path),
+        Err(err) => if err.raw_os_error() == Some(22) {
+            Ok(path)
+        } else {
+            Err(err)
+        },
+    }
+}
+
+pub fn is_spidev(path: &path::PathBuf) -> bool {
+    let devs = regex::RegexSet::new(&[
+        "^/dev/spidev\\d+\\.\\d+$",
+        "^/sys/devices/.+/spi\\d\\.\\d$",
+        "^/sys/class/devices/.+/spi\\d\\.\\d$",
+    ]).unwrap();
+    let real_path = match read_link_recursive(path.clone()) {
+        Ok(p)  => p,
+        Err(_) => return false,
+    };
+    devs.is_match(path.to_str().unwrap())
 }
