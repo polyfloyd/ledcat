@@ -2,6 +2,7 @@ extern crate byteorder;
 extern crate clap;
 #[macro_use]
 extern crate ioctl;
+extern crate libc;
 extern crate regex;
 
 mod device;

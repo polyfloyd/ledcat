@@ -7,4 +7,5 @@ authors = ["polyfloyd <floyd@polyfloyd.net>"]
 byteorder = "*"
 clap = "*"
 ioctl = "*"
+libc = "*"
 regex = "*"

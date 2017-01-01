@@ -1,6 +1,9 @@
 use std::io;
+use std::mem;
 use std::net;
+use std::os::unix::io::FromRawFd;
 use std::time;
+use libc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 
 pub const PORT: u16 = 6454;
@@ -15,7 +18,7 @@ pub struct Unicast {
 impl Unicast {
 
     pub fn to(addr: net::SocketAddr, frame_size: usize) -> io::Result<Unicast> {
-        let socket = try!(net::UdpSocket::bind(("0.0.0.0", PORT)));
+        let socket = try!(unsafe { reuse_bind(("0.0.0.0", PORT)) });
         try!(socket.set_broadcast(true));
         Ok(Unicast {
             socket:       socket,
@@ -55,7 +58,7 @@ pub fn broadcast_addr() -> net::SocketAddr {
 }
 
 pub fn discover(timeout: time::Duration) -> io::Result<Vec<net::SocketAddr>> {
-    let socket = try!(net::UdpSocket::bind(("0.0.0.0", PORT)));
+    let socket = try!(unsafe { reuse_bind(("0.0.0.0", PORT)) });
     try!(socket.set_broadcast(true));
 
     // Send out an ArtPoll packet to elicit an ArtPollReply from all devices in the network.
@@ -110,4 +113,32 @@ fn art_dmx_packet(wr: &mut io::Write, data: &Vec<u8>) -> io::Result<()> {
         try!(wr.write_u8(*b));                          // Data
     }
     Ok(())
+}
+
+/// Like UdpSocket::bind, but sets the socket reuse flags before binding.
+unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
+    let addr = try!(to_addr.to_socket_addrs()).next().unwrap(); // TODO: Use the other addresses.
+
+    let fd = libc::socket(libc::AF_INET, libc::SOCK_DGRAM, 0);
+    if fd < 0 {
+        return Err(io::Error::last_os_error());
+    }
+
+    let yes: *const libc::c_void = &1 as *const _ as *const libc::c_void;
+    libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, yes, 1);
+    libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEPORT, yes, 1);
+
+    let sock_addr: libc::sockaddr_in = match addr {
+        net::SocketAddr::V4(addr) => libc::sockaddr_in {
+            sin_family: libc::AF_INET as u16,
+            sin_port:   (addr.port()>>8) | (addr.port()<<8), // WTF
+            sin_addr:   libc::in_addr {
+                s_addr: io::Cursor::new(addr.ip().octets()).read_u32::<BigEndian>().unwrap(),
+            },
+            sin_zero:   [0; 8],
+        },
+        net::SocketAddr::V6(_) => unimplemented!(), // TODO
+    };
+    libc::bind(fd, &sock_addr as *const _ as *const libc::sockaddr, mem::size_of::<libc::sockaddr_in>() as u32);
+    return Ok(net::UdpSocket::from_raw_fd(fd));
 }
