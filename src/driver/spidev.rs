@@ -11,7 +11,7 @@ ioctl!(write spi_ioc_wr_lsb_first with b'k', 2; u8);
 ioctl!(write spi_ioc_wr_max_speed_hz with b'k', 4; u32);
 //ioctl!(write spi_ioc_wr_mode32 with b'k', 5; u32);
 
-pub fn open<'f>(path: &'f str, dev: &Device, speed_hz: u32) -> io::Result<Box<io::Write>> {
+pub fn open(path: &path::PathBuf, dev: &Device, speed_hz: u32) -> io::Result<fs::File> {
     let spidev = try!(fs::OpenOptions::new().write(true).open(path));
     let fd = spidev.as_raw_fd();
 
@@ -25,7 +25,7 @@ pub fn open<'f>(path: &'f str, dev: &Device, speed_hz: u32) -> io::Result<Box<io
         spi_ioc_wr_max_speed_hz(fd, &speed_hz);
     }
 
-    Ok(Box::new(spidev))
+    Ok(spidev)
 }
 
 fn read_link_recursive(path: path::PathBuf) -> io::Result<path::PathBuf> {
@@ -49,5 +49,5 @@ pub fn is_spidev(path: &path::PathBuf) -> bool {
         Ok(p)  => p,
         Err(_) => return false,
     };
-    devs.is_match(path.to_str().unwrap())
+    devs.is_match(real_path.to_str().unwrap())
 }

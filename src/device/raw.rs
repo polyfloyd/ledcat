@@ -3,9 +3,9 @@ use device::*;
 use clap;
 
 pub struct Raw {
-    clock_phase:    u8,
-    clock_polarity: u8,
-    first_bit:      FirstBit,
+    pub clock_phase:    u8,
+    pub clock_polarity: u8,
+    pub first_bit:      FirstBit,
 }
 
 impl Device for Raw {
