@@ -11,10 +11,12 @@ mod driver;
 use std::borrow::Borrow;
 use std::collections;
 use std::io;
+use std::io::Write;
 use std::net;
 use std::ops::Deref;
 use std::path;
 use std::str::FromStr;
+use std::thread;
 use std::time;
 use device::*;
 use driver::*;
@@ -90,10 +92,7 @@ fn main() {
 
     if sub_name == "artnet" {
         if sub_matches.unwrap().is_present("discover") {
-            let discovered = artnet::discover(time::Duration::new(3, 0)).unwrap();
-            for addr in discovered {
-                println!("  {:?}", addr);
-            }
+            artnet_discover().unwrap();
             return;
         }
     }
@@ -171,4 +170,29 @@ fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device
         buffer.push(Pixel::read_rgb24(&mut input).unwrap());
     }
     dev.write_frame(&mut output, &buffer).unwrap();
+}
+
+fn artnet_discover() -> io::Result<()> {
+    let discovery_stream = artnet::discover();
+    let mut discovered: collections::HashSet<net::SocketAddr> = collections::HashSet::new();
+
+    thread::spawn(|| {
+        let mut out = io::stderr();
+        loop {
+            for ch in ['|', '/', '-', '\\'].iter() {
+                write!(&mut out, "\r{}", ch).unwrap();
+                out.flush().unwrap();
+                thread::sleep(time::Duration::new(0, 100_000_000));
+            }
+        }
+    });
+
+    for result in discovery_stream {
+        let addr = try!(result);
+        if !discovered.contains(&addr) {
+            try!(write!(io::stderr(), "\r{}:{}\n", addr.ip(), addr.port()));
+        }
+        discovered.insert(addr);
+    }
+    Ok(())
 }

@@ -1,7 +1,10 @@
 use std::io;
 use std::mem;
+use std::net::ToSocketAddrs;
 use std::net;
 use std::os::unix::io::FromRawFd;
+use std::sync;
+use std::thread;
 use std::time;
 use libc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
@@ -53,37 +56,54 @@ impl io::Write for Unicast {
 }
 
 pub fn broadcast_addr() -> net::SocketAddr {
-    use std::net::*;
-    SocketAddr::new(IpAddr::V4(Ipv4Addr::new(255, 255, 255, 255)), PORT)
+    ("255.255.255.255", PORT).to_socket_addrs().unwrap().next().unwrap()
 }
 
-pub fn discover(timeout: time::Duration) -> io::Result<Vec<net::SocketAddr>> {
-    let socket = try!(unsafe { reuse_bind(("0.0.0.0", PORT)) });
-    try!(socket.set_broadcast(true));
+pub fn discover() -> sync::mpsc::Receiver<io::Result<net::SocketAddr>> {
+    let (tx, rx) = sync::mpsc::channel();
 
-    // Send out an ArtPoll packet to elicit an ArtPollReply from all devices in the network.
-    let mut buf = Vec::new();
-    try!(art_poll_packet(&mut buf));
-    try!(socket.send_to(&buf, ("255.255.255.255", PORT)));
+    thread::spawn(move || {
+        macro_rules! try_or_send {
+            ($expression:expr) => (
+                match $expression {
+                    Ok(val)  => val,
+                    Err(err) => {
+                        tx.send(Err(err)).unwrap();
+                        return;
+                    }
+                }
+            )
+        }
 
-    try!(socket.set_read_timeout(Some(timeout)));
-    let mut sockets = Vec::new();
-    loop {
-        let mut recv_buf = [0; 168];
-        let (_, sender_addr) = match socket.recv_from(&mut recv_buf) {
-            Err(_) => break,
-            Ok(rs) => rs,
-        };
-        if &recv_buf[0..8] != b"Art-Net\0" {
-            continue;
+        let socket = try_or_send!(unsafe { reuse_bind(("0.0.0.0", PORT)) });
+        try_or_send!(socket.set_broadcast(true));
+        try_or_send!(socket.set_read_timeout(Some(time::Duration::new(1, 0))));
+
+        loop {
+            // Send out an ArtPoll packet to elicit an ArtPollReply from all devices in the network.
+            let mut buf = Vec::new();
+            try_or_send!(art_poll_packet(&mut buf));
+            try_or_send!(socket.send_to(&buf, broadcast_addr()));
+
+            loop {
+                let mut recv_buf = [0; 168];
+                let (_, sender_addr) = match socket.recv_from(&mut recv_buf) {
+                    Err(_) => break,
+                    Ok(rs) => rs,
+                };
+                if &recv_buf[0..8] != b"Art-Net\0" {
+                    continue;
+                }
+                let mut rdr = io::Cursor::new(&recv_buf[8..10]);
+                let opcode = try_or_send!(rdr.read_u16::<LittleEndian>());
+                if opcode == 0x2100 {
+                    tx.send(Ok(sender_addr)).unwrap();
+                }
+            }
         }
-        let mut rdr = io::Cursor::new(&recv_buf[8..10]);
-        let opcode = try!(rdr.read_u16::<LittleEndian>());
-        if opcode == 0x2100 {
-            sockets.push(sender_addr);
-        }
-    }
-    Ok(sockets)
+    });
+
+    rx
 }
 
 fn art_poll_packet(wr: &mut io::Write) -> io::Result<()> {
@@ -124,7 +144,7 @@ unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSo
         return Err(io::Error::last_os_error());
     }
 
-    let yes: *const libc::c_void = &1 as *const _ as *const libc::c_void;
+    let yes = &1 as *const _ as *const libc::c_void;
     libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, yes, 1);
     libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEPORT, yes, 1);
 
