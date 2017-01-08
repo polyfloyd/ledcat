@@ -159,6 +159,10 @@ unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSo
         },
         net::SocketAddr::V6(_) => unimplemented!(), // TODO
     };
-    libc::bind(fd, &sock_addr as *const _ as *const libc::sockaddr, mem::size_of::<libc::sockaddr_in>() as u32);
+    let rt = libc::bind(fd, &sock_addr as *const _ as *const libc::sockaddr, mem::size_of::<libc::sockaddr_in>() as u32);
+    if rt == -1 {
+        libc::close(fd);
+        return Err(io::Error::last_os_error());
+    }
     return Ok(net::UdpSocket::from_raw_fd(fd));
 }
