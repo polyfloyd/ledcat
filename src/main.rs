@@ -68,6 +68,8 @@ fn main() {
                  .short("t")
                  .long("target")
                  .takes_value(true)
+                 .min_values(1)
+                 .multiple(true)
                  .conflicts_with_all(&["discover", "broadcast"])
                  .help("The target IP address"))
             .arg(clap::Arg::with_name("discover")
@@ -99,19 +101,26 @@ fn main() {
 
     let (mut output, dev) = if sub_name == "artnet" {
         let dev: Box<Device> = Box::new(device::raw::Raw{ clock_phase: 0, clock_polarity: 0, first_bit: FirstBit::MSB });
-        let artnet_addr = if sub_matches.unwrap().is_present("broadcast") {
-            artnet::broadcast_addr()
+        let artnet_addrs = if sub_matches.unwrap().is_present("broadcast") {
+            vec![ artnet::broadcast_addr() ]
         } else {
-            match net::IpAddr::from_str(sub_matches.unwrap().value_of("target").unwrap()) {
-                Ok(a)  => net::SocketAddr::new(a, artnet::PORT),
-                Err(_) => {
-                    println!("Invalid IP address");
-                    return;
-                },
+            let maybe_targets = sub_matches.unwrap().values_of("target").unwrap();
+            let mut targets = Vec::new();
+            for addr in maybe_targets {
+                match net::IpAddr::from_str(addr) {
+                    Ok(addr) => {
+                        targets.push(net::SocketAddr::new(addr, artnet::PORT));
+                    },
+                    Err(e)   => {
+                        println!("Invalid IP address: {}", e);
+                        return;
+                    },
+                }
             }
+            targets
         };
         let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
-        let output: Box<io::Write> = Box::new(artnet::Unicast::to(artnet_addr, num_pixels * 3).unwrap());
+        let output: Box<io::Write> = Box::new(artnet::Unicast::to(artnet_addrs, num_pixels * 3).unwrap());
         (output, dev)
 
     } else {

@@ -13,14 +13,14 @@ pub const PORT: u16 = 6454;
 
 pub struct Unicast {
     socket:       net::UdpSocket,
-    to_addr:      net::SocketAddr,
+    to_addr:      Vec<net::SocketAddr>,
     frame_size:   usize,
     frame_buffer: Vec<u8>,
 }
 
 impl Unicast {
 
-    pub fn to(addr: net::SocketAddr, frame_size: usize) -> io::Result<Unicast> {
+    pub fn to(addr: Vec<net::SocketAddr>, frame_size: usize) -> io::Result<Unicast> {
         let socket = try!(unsafe { reuse_bind(("0.0.0.0", PORT)) });
         try!(socket.set_broadcast(true));
         Ok(Unicast {
@@ -49,7 +49,9 @@ impl io::Write for Unicast {
         let mut packet = Vec::new();
         try!(art_dmx_packet(&mut packet, &self.frame_buffer));
         self.frame_buffer = new_buf;
-        try!(self.socket.send_to(&packet, self.to_addr));
+        for addr in &self.to_addr {
+            try!(self.socket.send_to(&packet, addr));
+        }
         Ok(())
     }
 
