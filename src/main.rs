@@ -7,6 +7,7 @@ extern crate regex;
 
 mod device;
 mod driver;
+mod input;
 
 use std::borrow::Borrow;
 use std::collections;
@@ -20,6 +21,7 @@ use std::thread;
 use std::time;
 use device::*;
 use driver::*;
+use input::*;
 
 fn is_int(s: String) -> Result<(), String> {
     match s.parse::<u64>() {
@@ -39,6 +41,14 @@ fn main() {
             .takes_value(true)
             .default_value("-")
             .help("The output file to write to. Use - for stdout."))
+        .arg(clap::Arg::with_name("input")
+            .short("i")
+            .long("input")
+            .takes_value(true)
+            .min_values(1)
+            .multiple(true)
+            .default_value("-")
+            .help("The inputs to read from. Read the manual for how inputs are read and prioritized."))
         .arg(clap::Arg::with_name("pixels")
             .short("n")
             .long("pixels")
@@ -160,7 +170,11 @@ fn main() {
     };
     let single_frame = matches.is_present("single-frame");
 
-    let mut input = io::stdin();
+    let inputs = matches.values_of("input").unwrap();
+    let mut input = select::Reader::from_files(inputs.map(|f| {
+        match f { "-" => "/dev/stdin", f => f }
+    }).collect(), num_pixels * 3).unwrap();
+
     if single_frame {
         pipe_frame(&mut input, &mut output, dev.deref(), num_pixels);
     } else {
