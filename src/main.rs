@@ -49,6 +49,10 @@ fn main() {
             .multiple(true)
             .default_value("-")
             .help("The inputs to read from. Read the manual for how inputs are read and prioritized."))
+        .arg(clap::Arg::with_name("async")
+            .long("async")
+            .requires("framerate")
+            .help("Instead of synchronously reading from one input at a time, consume all data concurrently, possibly dropping frames."))
         .arg(clap::Arg::with_name("pixels")
             .short("n")
             .long("pixels")
@@ -161,19 +165,24 @@ fn main() {
     };
 
     let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
-    let limit_framerate: Box<Fn()> = match matches.value_of("framerate") {
-        Some(fps) => {
-            let dur = time::Duration::new(1, 0) / fps.parse::<u32>().unwrap();
-            Box::new(move || std::thread::sleep(dur))
-        },
-        None => Box::new(|| ()),
+    let frame_interval = matches.value_of("framerate").map(|fps| {
+        time::Duration::new(1, 0) / fps.parse::<u32>().unwrap()
+    });
+    let limit_framerate: Box<Fn()> = match frame_interval.clone() {
+        Some(interval) => Box::new(move || std::thread::sleep(interval)),
+        None           => Box::new(|| ()),
     };
     let single_frame = matches.is_present("single-frame");
 
     let inputs = matches.values_of("input").unwrap();
+    let input_consume = if matches.is_present("async") {
+         select::Consume::All(frame_interval.unwrap())
+    } else {
+         select::Consume::Single
+    };
     let mut input = select::Reader::from_files(inputs.map(|f| {
         match f { "-" => "/dev/stdin", f => f }
-    }).collect(), num_pixels * 3).unwrap();
+    }).collect(), num_pixels * 3, input_consume).unwrap();
 
     if single_frame {
         pipe_frame(&mut input, &mut output, dev.deref(), num_pixels);
