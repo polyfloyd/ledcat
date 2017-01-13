@@ -3,6 +3,7 @@ use std::mem;
 use std::net::ToSocketAddrs;
 use std::net;
 use std::os::unix::io::FromRawFd;
+use std::str;
 use std::sync;
 use std::thread;
 use std::time;
@@ -61,7 +62,7 @@ pub fn broadcast_addr() -> net::SocketAddr {
     ("255.255.255.255", PORT).to_socket_addrs().unwrap().next().unwrap()
 }
 
-pub fn discover() -> sync::mpsc::Receiver<io::Result<net::SocketAddr>> {
+pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<String>)>> {
     let (tx, rx) = sync::mpsc::channel();
 
     thread::spawn(move || {
@@ -88,7 +89,7 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<net::SocketAddr>> {
             try_or_send!(socket.send_to(&buf, broadcast_addr()));
 
             loop {
-                let mut recv_buf = [0; 168];
+                let mut recv_buf = [0; 231];
                 let (_, sender_addr) = match socket.recv_from(&mut recv_buf) {
                     Err(_) => break,
                     Ok(rs) => rs,
@@ -99,7 +100,10 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<net::SocketAddr>> {
                 let mut rdr = io::Cursor::new(&recv_buf[8..10]);
                 let opcode = try_or_send!(rdr.read_u16::<LittleEndian>());
                 if opcode == 0x2100 {
-                    tx.send(Ok(sender_addr)).unwrap();
+                    let short_name = str::from_utf8(&recv_buf[19..38])
+                        .map(String::from)
+                        .ok();
+                    tx.send(Ok((sender_addr, short_name))).unwrap();
                 }
             }
         }

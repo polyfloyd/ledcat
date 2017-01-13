@@ -243,18 +243,22 @@ fn artnet_discover() -> io::Result<()> {
 
     let mut out = io::stderr();
     for result in discovery_stream {
-        let addr = match result {
-            Ok(addr) => addr,
+        let node = match result {
+            Ok(node) => node,
             Err(err) => {
                 close_tx.send(()).unwrap();
                 write!(&mut out, "\r").unwrap();
                 return Err(err);
             },
         };
-        if !discovered.contains(&addr) {
-            try!(writeln!(out, "\r{}:{}", addr.ip(), addr.port()));
+        if !discovered.contains(&node.0) {
+            let ip_str = format!("{}", node.0.ip()); // Padding only works with strings. :(
+            try!(match node.1 {
+                Some(name) => writeln!(out, "\r{: <15} -> {}", ip_str, name),
+                None       => writeln!(out, "\r{: <15}", ip_str),
+            });
         }
-        discovered.insert(addr);
+        discovered.insert(node.0);
     }
     Ok(())
 }
