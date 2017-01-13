@@ -11,23 +11,31 @@ mod input;
 
 use std::borrow::Borrow;
 use std::collections;
-use std::io;
 use std::io::Write;
+use std::io;
 use std::net;
 use std::ops::Deref;
 use std::path;
 use std::str::FromStr;
+use std::sync;
 use std::thread;
 use std::time;
+use regex::Regex;
 use device::*;
 use driver::*;
 use input::*;
 
-fn is_int(s: String) -> Result<(), String> {
-    match s.parse::<u64>() {
-        Ok(_)  => Ok(()),
-        Err(_) => Err("Value is not a positive integer".to_string()),
-    }
+macro_rules! regex_validator {
+    ($expression:expr) => ({
+        let ex = Regex::new($expression).unwrap();
+        move |val: String| {
+            if ex.is_match(val.as_str()) {
+                Ok(())
+            } else {
+                Err(format!("\"{}\" does not match {}", val, ex))
+            }
+        }
+    })
 }
 
 fn main() {
@@ -53,12 +61,12 @@ fn main() {
             .long("async")
             .requires("framerate")
             .help("Instead of synchronously reading from one input at a time, consume all data concurrently, possibly dropping frames."))
-        .arg(clap::Arg::with_name("pixels")
+        .arg(clap::Arg::with_name("num-pixels")
             .short("n")
-            .long("pixels")
-            .required(true)
+            .long("num-pixels")
+            .global(true)
             .takes_value(true)
-            .validator(is_int)
+            .validator(regex_validator!(r"^[1-9]\d*$"))
             .value_name("num pixels")
             .help("The number of pixels in the string"))
         .arg(clap::Arg::with_name("driver")
@@ -69,7 +77,7 @@ fn main() {
             .short("f")
             .long("framerate")
             .takes_value(true)
-            .validator(is_int)
+            .validator(regex_validator!(r"^[1-9]\d*$"))
             .help("Limit the number of frames per second"))
         .arg(clap::Arg::with_name("single-frame")
             .short("1")
@@ -84,6 +92,10 @@ fn main() {
                  .takes_value(true)
                  .min_values(1)
                  .multiple(true)
+                 .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
+                     Ok(_)    => Ok(()),
+                     Err(err) => Err(format!("{} ({})", err, addr)),
+                 })
                  .conflicts_with_all(&["discover", "broadcast"])
                  .help("The target IP address"))
             .arg(clap::Arg::with_name("discover")
@@ -103,38 +115,47 @@ fn main() {
         device_constructors.insert(device_init.0.get_name().to_string(), device_init.1);
         cli = cli.subcommand(device_init.0);
     }
-    let matches = cli.get_matches();
-    let (sub_name, sub_matches) = matches.subcommand();
 
-    if sub_name == "artnet" {
-        if sub_matches.unwrap().is_present("discover") {
-            artnet_discover().unwrap();
+    let matches = cli.clone().get_matches();
+    let (sub_name, sub_matches) = matches.subcommand();
+    if sub_name == "" {
+        let mut out = io::stderr();
+        cli.write_help(&mut out).unwrap();
+        writeln!(out, "").unwrap();
+        return;
+    }
+
+    if sub_name == "artnet" && sub_matches.unwrap().is_present("discover") {
+        if let Err(err) = artnet_discover() {
+            writeln!(io::stderr(), "{}", err).unwrap();
+        }
+        return;
+    }
+
+    let num_pixels = match matches.value_of("num-pixels") {
+        Some(s) => s.parse::<usize>().unwrap(),
+        None    => {
+            writeln!(io::stderr(), "--num-pixels is unset").unwrap();
             return;
         }
-    }
+    };
 
     let (mut output, dev) = if sub_name == "artnet" {
         let dev: Box<Device> = Box::new(device::raw::Raw{ clock_phase: 0, clock_polarity: 0, first_bit: FirstBit::MSB });
         let artnet_addrs = if sub_matches.unwrap().is_present("broadcast") {
             vec![ artnet::broadcast_addr() ]
         } else {
-            let maybe_targets = sub_matches.unwrap().values_of("target").unwrap();
-            let mut targets = Vec::new();
-            for addr in maybe_targets {
-                match net::IpAddr::from_str(addr) {
-                    Ok(addr) => {
-                        targets.push(net::SocketAddr::new(addr, artnet::PORT));
-                    },
-                    Err(e)   => {
-                        println!("Invalid IP address: {}", e);
-                        return;
-                    },
-                }
-            }
-            targets
+            sub_matches.unwrap().values_of("target").unwrap().map(|addr| {
+                net::SocketAddr::new(net::IpAddr::from_str(addr).unwrap(), artnet::PORT)
+            }).collect()
         };
-        let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
-        let output: Box<io::Write> = Box::new(artnet::Unicast::to(artnet_addrs, num_pixels * 3).unwrap());
+        let output: Box<io::Write> = match artnet::Unicast::to(artnet_addrs, num_pixels * 3) {
+            Ok(out)  => Box::new(out),
+            Err(err) => {
+                writeln!(io::stderr(), "{}", err).unwrap();
+                return;
+            },
+        };
         (output, dev)
 
     } else {
@@ -143,28 +164,27 @@ fn main() {
             "-" => "/dev/stdout",
             _   => matches.value_of("output").unwrap(),
         });
-        let driver_name = match matches.value_of("driver") {
-            Some(driver) => Some(driver.to_string()),
-            None         => driver::detect(&output_file),
-        };
+
+        let driver_name = matches.value_of("driver")
+            .map(|s: &str| s.to_string())
+            .or(driver::detect(&output_file));
         let driver_name = match driver_name {
             Some(n) => n,
             None    => {
-                println!("Unable to determine the driver to use. Please set one using --driver.");
+                writeln!(io::stderr(), "Unable to determine the driver to use. Please set one using --driver.").unwrap();
                 return;
             },
         };
         let output: Box<io::Write> = match driver_name.as_str() {
             "spidev" => Box::new(spidev::open(&output_file, dev.borrow(), 4_000_000).unwrap()),
             _        => {
-                println!("Unsupported or unknown driver: {}", driver_name);
+                writeln!(io::stderr(), "Unknown driver {}", driver_name).unwrap();
                 return;
             },
         };
         (output, dev)
     };
 
-    let num_pixels = matches.value_of("pixels").unwrap().parse::<usize>().unwrap();
     let frame_interval = matches.value_of("framerate").map(|fps| {
         time::Duration::new(1, 0) / fps.parse::<u32>().unwrap()
     });
@@ -208,21 +228,31 @@ fn artnet_discover() -> io::Result<()> {
     let discovery_stream = artnet::discover();
     let mut discovered: collections::HashSet<net::SocketAddr> = collections::HashSet::new();
 
-    thread::spawn(|| {
+    let (close_tx, close_rx) = sync::mpsc::sync_channel(0);
+    thread::spawn(move || {
         let mut out = io::stderr();
-        loop {
-            for ch in ['|', '/', '-', '\\'].iter() {
-                write!(&mut out, "\r{}", ch).unwrap();
-                out.flush().unwrap();
-                thread::sleep(time::Duration::new(0, 100_000_000));
+        for ch in ['|', '/', '-', '\\'].iter().cycle() {
+            if let Ok(_) = close_rx.try_recv() {
+                break;
             }
+            write!(&mut out, "\r{}", ch).unwrap();
+            out.flush().unwrap();
+            thread::sleep(time::Duration::new(0, 100_000_000));
         }
     });
 
+    let mut out = io::stderr();
     for result in discovery_stream {
-        let addr = try!(result);
+        let addr = match result {
+            Ok(addr) => addr,
+            Err(err) => {
+                close_tx.send(()).unwrap();
+                write!(&mut out, "\r").unwrap();
+                return Err(err);
+            },
+        };
         if !discovered.contains(&addr) {
-            try!(write!(io::stderr(), "\r{}:{}\n", addr.ip(), addr.port()));
+            try!(writeln!(out, "\r{}:{}", addr.ip(), addr.port()));
         }
         discovered.insert(addr);
     }
