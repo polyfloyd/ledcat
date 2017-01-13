@@ -205,23 +205,25 @@ fn main() {
     }).collect(), num_pixels * 3, input_consume).unwrap();
 
     if single_frame {
-        pipe_frame(&mut input, &mut output, dev.deref(), num_pixels);
+        let _ = pipe_frame(&mut input, &mut output, dev.deref(), num_pixels);
     } else {
         loop {
-            pipe_frame(&mut input, &mut output, dev.deref(), num_pixels);
+            if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), num_pixels) {
+                break;
+            }
             limit_framerate();
         }
     }
 }
 
-fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize) {
+fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize) -> io::Result<()> {
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks.
     let mut buffer = Vec::with_capacity(num_pixels);
     for _ in 0..num_pixels {
-        buffer.push(Pixel::read_rgb24(&mut input).unwrap());
+        buffer.push(try!(Pixel::read_rgb24(&mut input)));
     }
-    dev.write_frame(&mut output, &buffer).unwrap();
+    dev.write_frame(&mut output, &buffer)
 }
 
 fn artnet_discover() -> io::Result<()> {
