@@ -73,6 +73,12 @@ fn main() {
             .long("driver")
             .takes_value(true)
             .help("The driver to use for the output. If this is not specified, the driver is automaticaly detected based on the output"))
+        .arg(clap::Arg::with_name("spidev-clock")
+            .long("spidev-clock")
+            .takes_value(true)
+            .validator(regex_validator!(r"^[1-9]\d*$"))
+            .default_value("500000")
+            .help("If spidev is used as driver, use this to set the clock frequency in Hertz"))
         .arg(clap::Arg::with_name("framerate")
             .short("f")
             .long("framerate")
@@ -176,8 +182,11 @@ fn main() {
             },
         };
         let output: Box<io::Write> = match driver_name.as_str() {
-            "spidev" => Box::new(spidev::open(&output_file, dev.borrow(), 4_000_000).unwrap()),
-            _        => {
+            "spidev" => {
+                let clock = matches.value_of("spidev-clock").unwrap().parse::<u32>().unwrap();
+                Box::new(spidev::open(&output_file, dev.borrow(), clock).unwrap())
+            },
+            _ => {
                 writeln!(io::stderr(), "Unknown driver {}", driver_name).unwrap();
                 return;
             },
