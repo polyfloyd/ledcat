@@ -24,7 +24,7 @@ impl Device for Raw {
 
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         for pix in pixels.iter() {
-            try!(writer.write_all(&[pix.g, pix.r, pix.b]));
+            try!(writer.write_all(&[pix.r, pix.g, pix.b]));
         }
         Ok(())
     }
