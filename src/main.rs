@@ -91,7 +91,7 @@ fn main() {
             .conflicts_with("framerate")
             .help("Send a single frame to the output and exit"))
         .subcommand(clap::SubCommand::with_name("artnet")
-            .about("Control LEDs over artnet unicast and broadcast")
+            .about("Control artnet DMX nodes via unicast and broadcast")
             .arg(clap::Arg::with_name("target")
                  .short("t")
                  .long("target")
@@ -103,7 +103,7 @@ fn main() {
                      Err(err) => Err(format!("{} ({})", err, addr)),
                  })
                  .conflicts_with_all(&["discover", "broadcast"])
-                 .help("The target IP address"))
+                 .help("One or more target IP addresses"))
             .arg(clap::Arg::with_name("discover")
                  .short("d")
                  .long("discover")
@@ -113,8 +113,7 @@ fn main() {
                  .short("b")
                  .long("broadcast")
                  .conflicts_with_all(&["target", "discover"])
-                 .help("Broadcast to all devices in the network"))
-            .help("Control artnet DMX nodes via unicast and broadcast"));
+                 .help("Broadcast to all devices in the network")));
 
     let mut device_constructors = collections::HashMap::new();
     for device_init in device::devices() {
