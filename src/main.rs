@@ -24,6 +24,7 @@ use regex::Regex;
 use device::*;
 use driver::*;
 use input::*;
+use input::geometry::Transposition;
 
 macro_rules! regex_validator {
     ($expression:expr) => ({
@@ -67,8 +68,22 @@ fn main() {
             .global(true)
             .takes_value(true)
             .validator(regex_validator!(r"^[1-9]\d*$"))
-            .value_name("num pixels")
             .help("The number of pixels in the string"))
+        .arg(clap::Arg::with_name("geometry")
+            .short("g")
+            .long("geometry")
+            .takes_value(true)
+            .conflicts_with("num-pixels")
+            .validator(regex_validator!(r"^[1-9]\d*x[1-9]\d*$"))
+            .help("Specify the size of a two dimensional display"))
+        .arg(clap::Arg::with_name("transpose")
+            .short("t")
+            .long("transpose")
+            .takes_value(true)
+            .min_values(1)
+            .multiple(true)
+            .possible_values(&[ "reverse", "zigzag_x", "zigzag_y" ])
+            .help("Apply one or more transpositions to the output"))
         .arg(clap::Arg::with_name("driver")
             .long("driver")
             .takes_value(true)
@@ -137,12 +152,16 @@ fn main() {
         return;
     }
 
-    let num_pixels = match matches.value_of("num-pixels") {
-        Some(s) => s.parse::<usize>().unwrap(),
-        None    => {
-            writeln!(io::stderr(), "--num-pixels is unset").unwrap();
-            return;
-        }
+    let dimensions = if let Some(npix) = matches.value_of("num-pixels") {
+        geometry::Dimensions::One(npix.parse::<usize>().unwrap())
+    } else if let Some(geom) = matches.value_of("geometry") {
+        let parsed: Vec<usize> = geom.split('x').map(|d| -> usize {
+            d.parse::<usize>().unwrap()
+        }).collect();
+        geometry::Dimensions::Two(parsed[0], parsed[1])
+    } else {
+        writeln!(io::stderr(), "Please set the frame size through either --num-pixels or --geometry").unwrap();
+        return;
     };
 
     let (mut output, dev) = if sub_name == "artnet" {
@@ -154,7 +173,7 @@ fn main() {
                 net::SocketAddr::new(net::IpAddr::from_str(addr).unwrap(), artnet::PORT)
             }).collect()
         };
-        let output: Box<io::Write> = match artnet::Unicast::to(artnet_addrs, num_pixels * 3) {
+        let output: Box<io::Write> = match artnet::Unicast::to(artnet_addrs, dimensions.size() * 3) {
             Ok(out)  => Box::new(out),
             Err(err) => {
                 writeln!(io::stderr(), "{}", err).unwrap();
@@ -193,6 +212,17 @@ fn main() {
         (output, dev)
     };
 
+    let transpose = matches.values_of("transpose")
+        .map(|v| v.collect())
+        .unwrap_or(vec![]);
+    let transposition = match transposition_table(&dimensions, transpose) {
+        Ok(t)    => t,
+        Err(err) => {
+            writeln!(io::stderr(), "{}", err).unwrap();
+            return;
+        },
+    };
+
     let frame_interval = matches.value_of("framerate").map(|fps| {
         time::Duration::new(1, 0) / fps.parse::<u32>().unwrap()
     });
@@ -210,13 +240,13 @@ fn main() {
     };
     let mut input = select::Reader::from_files(inputs.map(|f| {
         match f { "-" => "/dev/stdin", f => f }
-    }).collect(), num_pixels * 3, input_consume).unwrap();
+    }).collect(), dimensions.size() * 3, input_consume).unwrap();
 
     if single_frame {
-        let _ = pipe_frame(&mut input, &mut output, dev.deref(), num_pixels);
+        let _ = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition);
     } else {
         loop {
-            if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), num_pixels) {
+            if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition) {
                 break;
             }
             limit_framerate();
@@ -224,14 +254,46 @@ fn main() {
     }
 }
 
-fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize) -> io::Result<()> {
+fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize, transposition: &Vec<usize>) -> io::Result<()> {
     // Read a full frame into a buffer. This prevents half frames being written to a
-    // potentially timing sensitive output if the input blocks.
-    let mut buffer = Vec::with_capacity(num_pixels);
-    for _ in 0..num_pixels {
-        buffer.push(try!(Pixel::read_rgb24(&mut input)));
+    // potentially timing sensitive output if the input blocks and lets us apply the
+    // transpositions.
+    let mut buffer = Vec::new();
+    buffer.resize(num_pixels, Pixel{ r: 0, g: 0, b: 0 });
+    for i in 0..num_pixels {
+        buffer[transposition[i]] = try!(Pixel::read_rgb24(&mut input));
     }
     dev.write_frame(&mut output, &buffer)
+}
+
+fn transposition_table(dimensions: &geometry::Dimensions, operations: Vec<&str>) -> Result<Vec<usize>, String> {
+    let transpositions: Vec<Box<geometry::Transposition>> = try!(operations.into_iter()
+        .map(|name| -> Result<Box<geometry::Transposition>, String> {
+            match name {
+                "reverse" => {
+                    Ok(Box::from(geometry::Reverse { num_pixels: dimensions.size() }))
+                },
+                "zigzag_x" | "zigzag_y" => {
+                    let (w, h) = match *dimensions {
+                        geometry::Dimensions::Two(x, y) => (x, y),
+                        _ => return Err("Zigzag requires 2D geometry to be specified".to_string()),
+                    };
+                    Ok(Box::from(geometry::Zigzag {
+                        width:      w,
+                        height:     h,
+                        major_axis: match name.chars().last().unwrap() {
+                            'x' => geometry::Axis::X,
+                            _   => geometry::Axis::Y,
+                        },
+                    }))
+                },
+                _ => Err(format!("Unknown transposition: {}", name)),
+            }
+        })
+        .collect());
+    Ok((0..dimensions.size()).map(|index| {
+        transpositions.transpose(index)
+    }).collect())
 }
 
 fn artnet_discover() -> io::Result<()> {

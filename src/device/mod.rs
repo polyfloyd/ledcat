@@ -15,6 +15,7 @@ pub trait Device {
     fn write_frame(&self, &mut io::Write, &[Pixel]) -> io::Result<()>;
 }
 
+#[derive(Clone)]
 pub struct Pixel {
     pub r: u8,
     pub g: u8,
