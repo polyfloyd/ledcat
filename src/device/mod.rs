@@ -27,7 +27,7 @@ impl Pixel {
     pub fn read_rgb24(reader: &mut io::Read) -> io::Result<Pixel> {
         let mut pixbuf: [u8; 3] = [0; 3];
         try!(reader.read_exact(&mut pixbuf));
-        Ok(Pixel{ b: pixbuf[0], g: pixbuf[1], r: pixbuf[2] })
+        Ok(Pixel{ r: pixbuf[0], g: pixbuf[1], b: pixbuf[2] })
     }
 
 }

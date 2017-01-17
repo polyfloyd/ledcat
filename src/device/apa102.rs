@@ -26,7 +26,7 @@ impl Device for Apa102 {
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         try!(writer.write_all(&[0x00; 4]));
         for pix in pixels {
-            try!(writer.write_all(&[0b11100000 | self.grayscale, pix.r, pix.g, pix.b]));
+            try!(writer.write_all(&[0b11100000 | self.grayscale, pix.b, pix.g, pix.r]));
         }
         thread::sleep(time::Duration::new(0, 500_000));
         Ok(())
