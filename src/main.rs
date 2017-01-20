@@ -11,6 +11,7 @@ mod input;
 
 use std::borrow::Borrow;
 use std::collections;
+use std::fs;
 use std::io::Write;
 use std::io;
 use std::net;
@@ -200,6 +201,9 @@ fn main() {
             },
         };
         let output: Box<io::Write> = match driver_name.as_str() {
+            "none" => {
+                Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap())
+            },
             "spidev" => {
                 let clock = matches.value_of("spidev-clock").unwrap().parse::<u32>().unwrap();
                 Box::new(spidev::open(&output_file, dev.borrow(), clock).unwrap())
