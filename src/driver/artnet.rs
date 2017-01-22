@@ -150,9 +150,18 @@ unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSo
         return Err(io::Error::last_os_error());
     }
 
-    let yes = &1 as *const _ as *const libc::c_void;
-    libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, yes, 1);
-    libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEPORT, yes, 1);
+    let yes: u32 = 1;
+    let yes_ptr = &yes as *const _ as *const libc::c_void;
+    if libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, yes_ptr, 4) == -1 {
+        let err = io::Error::last_os_error();
+        libc::close(fd);
+        return Err(err);
+    }
+    if libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEPORT, yes_ptr, 4) == -1 {
+        let err = io::Error::last_os_error();
+        libc::close(fd);
+        return Err(err);
+    }
 
     let sock_addr: libc::sockaddr_in = match addr {
         net::SocketAddr::V4(addr) => libc::sockaddr_in {
