@@ -33,14 +33,14 @@ impl Reader {
         Ok(Reader::from(files, switch_after, consume))
     }
 
-    pub fn from<R>(mut inputs: Vec<R>, switch_after: usize, consume: Consume) -> Box<io::Read>
+    pub fn from<R>(inputs: Vec<R>, switch_after: usize, consume: Consume) -> Box<io::Read>
         where R: io::Read + Send + 'static {
         assert_ne!(inputs.len(), 0);
         if inputs.len() == 1 {
-            return Box::from(inputs.remove(0));
+            return Box::from(inputs.into_iter().next().unwrap());
         }
 
-        let receivers = inputs.drain(..).map(|mut input| {
+        let receivers = inputs.into_iter().map(|mut input| {
             let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1);
             let consume = consume.clone();
             thread::spawn(move || {
