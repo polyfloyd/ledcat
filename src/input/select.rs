@@ -28,7 +28,8 @@ impl Reader {
     pub fn from_files(filenames: Vec<&str>, switch_after: usize, consume: Consume) -> io::Result<Box<io::Read>> {
         let mut files = Vec::new();
         for filename in filenames {
-            files.push(try!(fs::OpenOptions::new().read(true).open(filename)));
+            let f = try!(fs::OpenOptions::new().read(true).open(filename));
+            files.push(io::BufReader::with_capacity(switch_after, f));
         }
         Ok(Reader::from(files, switch_after, consume))
     }

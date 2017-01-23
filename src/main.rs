@@ -173,7 +173,7 @@ fn main() {
         return;
     };
 
-    let (mut output, dev) = if sub_name == "artnet" {
+    let (output, dev) = if sub_name == "artnet" {
         let dev: Box<Device> = Box::new(device::raw::Raw{ clock_phase: 0, clock_polarity: 0, first_bit: FirstBit::MSB });
         let artnet_addrs = if sub_matches.unwrap().is_present("broadcast") {
             vec![ artnet::broadcast_addr() ]
@@ -246,10 +246,6 @@ fn main() {
     let frame_interval = matches.value_of("framerate").map(|fps| {
         time::Duration::new(1, 0) / fps.parse::<u32>().unwrap()
     });
-    let limit_framerate: Box<Fn()> = match frame_interval.clone() {
-        Some(interval) => Box::new(move || std::thread::sleep(interval)),
-        None           => Box::new(|| ()),
-    };
     let single_frame = matches.is_present("single-frame");
 
     let inputs = matches.values_of("input").unwrap();
@@ -262,14 +258,22 @@ fn main() {
         match f { "-" => "/dev/stdin", f => f }
     }).collect(), dimensions.size() * 3, input_consume).unwrap();
 
+    let mut output = io::BufWriter::with_capacity(dev.written_frame_size(dimensions.size()), output);
+
     if single_frame {
         let _ = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition, &color_correction);
     } else {
         loop {
+            let start = time::Instant::now();
             if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition, &color_correction) {
                 break;
             }
-            limit_framerate();
+            if let Some(interval) = frame_interval {
+                let el = start.elapsed();
+                if interval >= el {
+                    thread::sleep(interval - el);
+                }
+            }
         }
     }
 }
@@ -283,7 +287,8 @@ fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device
     for i in 0..num_pixels {
         buffer[transposition[i]] = correction.correct(try!(Pixel::read_rgb24(&mut input)));
     }
-    dev.write_frame(&mut output, &buffer)
+    try!(dev.write_frame(&mut output, &buffer));
+    output.flush()
 }
 
 fn transposition_table(dimensions: &geometry::Dimensions, operations: Vec<&str>) -> Result<Vec<usize>, String> {

@@ -1,6 +1,4 @@
 use std::io;
-use std::thread;
-use std::time;
 use clap;
 use color::*;
 use device::*;
@@ -33,7 +31,6 @@ impl Device for Apa102 {
         for pix in pixels {
             try!(writer.write_all(&[0b11100000 | self.grayscale, pix.b, pix.g, pix.r]));
         }
-        thread::sleep(time::Duration::new(0, 500_000));
         Ok(())
     }
 
