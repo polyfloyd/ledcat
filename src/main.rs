@@ -174,7 +174,7 @@ fn main() {
     };
 
     let (output, dev) = if sub_name == "artnet" {
-        let dev: Box<Device> = Box::new(device::raw::Raw{ clock_phase: 0, clock_polarity: 0, first_bit: FirstBit::MSB });
+        let dev: Box<Device> = Box::new(device::generic::Generic{ clock_phase: 0, clock_polarity: 0, first_bit: FirstBit::MSB });
         let artnet_addrs = if sub_matches.unwrap().is_present("broadcast") {
             vec![ artnet::broadcast_addr() ]
         } else {

@@ -3,13 +3,13 @@ use device::*;
 use clap;
 use color::*;
 
-pub struct Raw {
+pub struct Generic {
     pub clock_phase:    u8,
     pub clock_polarity: u8,
     pub first_bit:      FirstBit,
 }
 
-impl Device for Raw {
+impl Device for Generic {
 
     fn clock_phase(&self) -> u8 {
         self.clock_phase
@@ -37,7 +37,7 @@ impl Device for Raw {
 }
 
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("raw")
+    clap::SubCommand::with_name("generic")
         .about("Output data as RGB24")
         .arg(clap::Arg::with_name("clock-phase")
              .short("a")
@@ -66,7 +66,7 @@ pub fn from_command(args: &clap::ArgMatches) -> Box<Device> {
         "msb" => FirstBit::MSB,
         _     => FirstBit::LSB,
     };
-    Box::new(Raw {
+    Box::new(Generic{
         clock_phase: cpha,
         clock_polarity: cpol,
         first_bit: fb,

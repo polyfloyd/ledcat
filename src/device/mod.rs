@@ -4,7 +4,7 @@ use color::*;
 
 pub mod apa102;
 pub mod lpd8806;
-pub mod raw;
+pub mod generic;
 
 #[derive(Clone)]
 pub enum FirstBit { LSB, MSB }
@@ -30,6 +30,6 @@ pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, fn(&clap::ArgMatches) -> Box
     vec![
         (apa102::command(), apa102::from_command),
         (lpd8806::command(), lpd8806::from_command),
-        (raw::command(), raw::from_command),
+        (generic::command(), generic::from_command),
     ]
 }
