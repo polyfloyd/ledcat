@@ -1,6 +1,7 @@
 use std::io;
 use device::*;
 use clap;
+use color::*;
 
 pub struct Raw {
     pub clock_phase:    u8,
@@ -20,6 +21,10 @@ impl Device for Raw {
 
     fn first_bit(&self) -> FirstBit {
         self.first_bit.clone()
+    }
+
+    fn color_correction(&self) -> Correction {
+        Correction::none()
     }
 
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {

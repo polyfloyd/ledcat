@@ -1,5 +1,6 @@
 use std::io;
 use clap;
+use color::*;
 
 pub mod apa102;
 pub mod lpd8806;
@@ -12,24 +13,8 @@ pub trait Device {
     fn clock_phase(&self) -> u8;
     fn clock_polarity(&self) -> u8;
     fn first_bit(&self) -> FirstBit;
+    fn color_correction(&self) -> Correction;
     fn write_frame(&self, &mut io::Write, &[Pixel]) -> io::Result<()>;
-}
-
-#[derive(Clone)]
-pub struct Pixel {
-    pub r: u8,
-    pub g: u8,
-    pub b: u8,
-}
-
-impl Pixel {
-
-    pub fn read_rgb24(reader: &mut io::Read) -> io::Result<Pixel> {
-        let mut pixbuf: [u8; 3] = [0; 3];
-        try!(reader.read_exact(&mut pixbuf));
-        Ok(Pixel{ r: pixbuf[0], g: pixbuf[1], b: pixbuf[2] })
-    }
-
 }
 
 pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, fn(&clap::ArgMatches) -> Box<Device>)> {

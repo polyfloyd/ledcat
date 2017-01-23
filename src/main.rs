@@ -5,6 +5,7 @@ extern crate ioctl;
 extern crate libc;
 extern crate regex;
 
+mod color;
 mod device;
 mod driver;
 mod input;
@@ -22,6 +23,7 @@ use std::sync;
 use std::thread;
 use std::time;
 use regex::Regex;
+use color::*;
 use device::*;
 use driver::*;
 use input::*;
@@ -85,6 +87,12 @@ fn main() {
             .multiple(true)
             .possible_values(&[ "reverse", "zigzag_x", "zigzag_y" ])
             .help("Apply one or more transpositions to the output"))
+        .arg(clap::Arg::with_name("color-correction")
+            .short("c")
+            .long("color-correction")
+            .takes_value(true)
+            .possible_values(&[ "none", "srgb" ])
+            .help("Override the default color correction. The default is determined per device."))
         .arg(clap::Arg::with_name("driver")
             .long("driver")
             .takes_value(true)
@@ -227,6 +235,14 @@ fn main() {
         },
     };
 
+    let color_correction = matches.value_of("color-correction")
+        .and_then(|name| match name {
+            "none" => Some(Correction::none()),
+            "srgb" => Some(Correction::srgb(255, 255, 255)),
+            _      => None,
+        })
+        .unwrap_or_else(|| dev.color_correction());
+
     let frame_interval = matches.value_of("framerate").map(|fps| {
         time::Duration::new(1, 0) / fps.parse::<u32>().unwrap()
     });
@@ -247,10 +263,10 @@ fn main() {
     }).collect(), dimensions.size() * 3, input_consume).unwrap();
 
     if single_frame {
-        let _ = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition);
+        let _ = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition, &color_correction);
     } else {
         loop {
-            if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition) {
+            if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition, &color_correction) {
                 break;
             }
             limit_framerate();
@@ -258,14 +274,14 @@ fn main() {
     }
 }
 
-fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize, transposition: &Vec<usize>) -> io::Result<()> {
+fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize, transposition: &Vec<usize>, correction: &Correction) -> io::Result<()> {
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
     // transpositions.
     let mut buffer = Vec::new();
     buffer.resize(num_pixels, Pixel{ r: 0, g: 0, b: 0 });
     for i in 0..num_pixels {
-        buffer[transposition[i]] = try!(Pixel::read_rgb24(&mut input));
+        buffer[transposition[i]] = correction.correct(try!(Pixel::read_rgb24(&mut input)));
     }
     dev.write_frame(&mut output, &buffer)
 }

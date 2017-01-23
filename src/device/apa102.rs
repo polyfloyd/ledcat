@@ -2,6 +2,7 @@ use std::io;
 use std::thread;
 use std::time;
 use clap;
+use color::*;
 use device::*;
 
 pub struct Apa102 {
@@ -21,6 +22,10 @@ impl Device for Apa102 {
 
     fn first_bit(&self) -> FirstBit {
         FirstBit::MSB
+    }
+
+    fn color_correction(&self) -> Correction {
+        Correction::srgb(255, 255, 255)
     }
 
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
