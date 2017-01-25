@@ -1,8 +1,12 @@
 use std::fs;
 use std::io;
+use std::os::unix::fs::FileTypeExt;
+use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::io::AsRawFd;
 use std::sync::mpsc;
 use std::thread;
 use std::time;
+use libc;
 
 /// Tells readers how to handle excessive data if more is produced from the inputs than is being
 /// read.
@@ -25,21 +29,47 @@ pub struct Reader {
 
 impl Reader {
 
-    pub fn from_files(filenames: Vec<&str>, switch_after: usize, consume: Consume) -> io::Result<Box<io::Read>> {
-        let mut files = Vec::new();
-        for filename in filenames {
-            let f = try!(fs::OpenOptions::new().read(true).open(filename));
-            files.push(io::BufReader::with_capacity(switch_after, f));
-        }
-        Ok(Reader::from(files, switch_after, consume))
+    pub fn from_files(filenames: Vec<&str>, switch_after: usize, consume: Consume) -> io::Result<Reader> {
+        let files: io::Result<Vec<fs::File>> = filenames.into_iter().map(|filename| {
+            let mut open_opts = fs::OpenOptions::new();
+            open_opts.read(true);
+
+            let is_fifo = if cfg!(unix) {
+                try!(fs::metadata(filename)).file_type().is_fifo()
+            } else { false };
+            if is_fifo {
+                // A FIFO will block the call to open() until the other end has been opened. This
+                // means that when multiple FIFO's are used, they all have to be open at once
+                // before this program can continue.
+                // Opening the file with O_NONBLOCK will ensure that we don't have to wait.
+                open_opts.custom_flags(libc::O_NONBLOCK);
+            }
+
+            let file = try!(open_opts.open(filename));
+
+            if is_fifo {
+                unsafe {
+                    // Now unset the O_NONBLOCK flag so reads will block again.
+                    let fd = file.as_raw_fd();
+                    let opts = libc::fcntl(fd, libc::F_GETFL);
+                    assert!(opts & libc::O_NONBLOCK > 0);
+                    if opts < 0 {
+                        return Err(io::Error::last_os_error());
+                    }
+                    if libc::fcntl(fd, libc::F_SETFL, opts & !libc::O_NONBLOCK) < 0 {
+                        return Err(io::Error::last_os_error());
+                    }
+                }
+            }
+
+            Ok(file)
+        }).collect();
+        Ok(Reader::from(try!(files), switch_after, consume))
     }
 
-    pub fn from<R>(inputs: Vec<R>, switch_after: usize, consume: Consume) -> Box<io::Read>
+    pub fn from<R>(inputs: Vec<R>, switch_after: usize, consume: Consume) -> Reader
         where R: io::Read + Send + 'static {
         assert_ne!(inputs.len(), 0);
-        if inputs.len() == 1 {
-            return Box::from(inputs.into_iter().next().unwrap());
-        }
 
         let receivers = inputs.into_iter().map(|mut input| {
             let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1);
@@ -70,11 +100,11 @@ impl Reader {
             rx
         }).collect();
 
-        Box::from(Reader{
+        Reader {
             consume:   consume,
             receivers: receivers,
             current:   None,
-        })
+        }
     }
 
 }
