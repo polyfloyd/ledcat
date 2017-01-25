@@ -296,7 +296,7 @@ fn transposition_table(dimensions: &geometry::Dimensions, operations: Vec<&str>)
         .map(|name| -> Result<Box<geometry::Transposition>, String> {
             match name {
                 "reverse" => {
-                    Ok(Box::from(geometry::Reverse { num_pixels: dimensions.size() }))
+                    Ok(Box::from(geometry::Reverse { length: dimensions.size() }))
                 },
                 "zigzag_x" | "zigzag_y" => {
                     let (w, h) = match *dimensions {

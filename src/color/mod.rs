@@ -1,6 +1,6 @@
 use std::io;
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Pixel {
     pub r: u8,
     pub g: u8,
@@ -60,4 +60,17 @@ impl Correction {
         }
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use std::*;
+    use super::*;
+
+    #[test]
+    fn pixel_read_rgb24() {
+        let mut c = io::Cursor::new([1, 2, 3, 4, 5, 6]);
+        assert_eq!(Pixel { r: 1, g: 2, b: 3 }, Pixel::read_rgb24(&mut c).unwrap());
+        assert_eq!(Pixel { r: 4, g: 5, b: 6 }, Pixel::read_rgb24(&mut c).unwrap());
+    }
 }
