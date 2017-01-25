@@ -41,13 +41,12 @@ fn read_link_recursive(path: path::PathBuf) -> io::Result<path::PathBuf> {
 
 pub fn is_spidev(path: &path::PathBuf) -> bool {
     let devs = regex::RegexSet::new(&[
-        "^/dev/spidev\\d+\\.\\d+$",
-        "^/sys/devices/.+/spi\\d\\.\\d$",
-        "^/sys/class/devices/.+/spi\\d\\.\\d$",
+        r"^/dev/spidev\d+\.\d+$",
+        r"^/sys/devices/.+/spi\d\.\d$",
+        r"^/sys/class/devices/.+/spi\d\.\d$",
     ]).unwrap();
-    let real_path = match read_link_recursive(path.clone()) {
-        Ok(p)  => p,
-        Err(_) => return false,
-    };
-    devs.is_match(real_path.to_str().unwrap())
+    match read_link_recursive(path.clone()) {
+        Ok(p)  => devs.is_match(p.to_str().unwrap()),
+        Err(_) => false,
+    }
 }
