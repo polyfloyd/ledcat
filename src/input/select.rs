@@ -3,6 +3,7 @@ use std::io;
 use std::os::unix::fs::FileTypeExt;
 use std::os::unix::fs::OpenOptionsExt;
 use std::os::unix::io::AsRawFd;
+use std::path;
 use std::sync::mpsc;
 use std::thread;
 use std::time;
@@ -29,14 +30,13 @@ pub struct Reader {
 
 impl Reader {
 
-    pub fn from_files(filenames: Vec<&str>, switch_after: usize, consume: Consume) -> io::Result<Reader> {
+    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, consume: Consume) -> io::Result<Reader>
+        where P: AsRef<path::Path> {
         let files: io::Result<Vec<fs::File>> = filenames.into_iter().map(|filename| {
             let mut open_opts = fs::OpenOptions::new();
             open_opts.read(true);
 
-            let is_fifo = if cfg!(unix) {
-                try!(fs::metadata(filename)).file_type().is_fifo()
-            } else { false };
+            let is_fifo = cfg!(unix) && try!(fs::metadata(&filename)).file_type().is_fifo();
             if is_fifo {
                 // A FIFO will block the call to open() until the other end has been opened. This
                 // means that when multiple FIFO's are used, they all have to be open at once
@@ -45,7 +45,7 @@ impl Reader {
                 open_opts.custom_flags(libc::O_NONBLOCK);
             }
 
-            let file = try!(open_opts.open(filename));
+            let file = try!(open_opts.open(&filename));
 
             if is_fifo {
                 unsafe {
@@ -136,4 +136,152 @@ impl io::Read for Reader {
         }
     }
 
+}
+
+
+#[cfg(test)]
+mod tests {
+    extern crate tempdir;
+    use std::*;
+    use std::io::Read;
+    use std::sync::mpsc;
+    use super::*;
+
+    struct IterReader<I: iter::Iterator<Item=u8>>(I);
+
+    impl<I> io::Read for IterReader<I>
+        where I: iter::Iterator<Item=u8> {
+        fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+            for i in 0..buf.len() {
+                match self.0.next() {
+                    Some(b) => buf[i] = b,
+                    None    => return Ok(i),
+                };
+            }
+            Ok(buf.len())
+        }
+    }
+
+    fn copy_iter<I: iter::Iterator<Item=u8>>(wr: &mut io::Write, it: I) {
+        let v: Vec<u8> = it.collect();
+        wr.write(&v).unwrap();
+        wr.flush().unwrap();
+    }
+
+    #[test]
+    fn read_one_input() {
+        let len = 100;
+        let num = 16;
+        let testdata: Vec<u8> = (1..num+1)
+            .fold(Box::from(iter::empty()) as Box<iter::Iterator<Item=_>>, |ch, i| {
+                Box::from(ch.chain(iter::repeat(i as u8).take(len)))
+            }).collect();
+
+        let mut reader = Reader::from(vec![
+            io::Cursor::new(testdata.clone()),
+        ], len, Consume::Single);
+
+        for i in 0..num {
+            let mut rd_buf = Vec::new();
+            rd_buf.resize(len, 0);
+            reader.read_exact(&mut rd_buf).unwrap();
+            assert_eq!(testdata[len * i..len * (i + 1)], rd_buf[..]);
+        }
+        // NOTE: The reader should now be empty and thus block any subsequent read.
+        // We can not really test this because of the halting problem. :(
+    }
+
+    #[test]
+    fn read_multiple_inputs_order() {
+        let len = 100;
+        let num = 16;
+
+        let mut reader = Reader::from((1..num+1).map(|i| {
+            IterReader(iter::repeat(i).take(len))
+        }).collect(), len, Consume::Single);
+
+        for i in 1..num+1 {
+            let mut rd_buf = Vec::new();
+            rd_buf.resize(len, 0);
+            reader.read_exact(&mut rd_buf).unwrap();
+            let expected: Vec<u8> = iter::repeat(i).take(len).collect();
+            assert_eq!(expected, rd_buf);
+        }
+    }
+
+    #[test]
+    fn read_switching() {
+        let len = 100;
+        let (pat1, pat2) = (12, 42);
+
+        let (tx1, rx1) = mpsc::channel();
+        let (tx2, rx2) = mpsc::channel();
+        let mut reader = Reader::from(vec![
+            IterReader(rx1.into_iter()),
+            IterReader(rx2.into_iter()),
+        ], len, Consume::Single);
+
+        let mut rd_buf = Vec::new();
+        rd_buf.resize(len, 0);
+
+        // Send a partial frame over channel 1...
+        for v in iter::repeat(pat1).take(len - 1) { tx1.send(v).unwrap(); }
+
+        // Send and receive a full frame over channel 2.
+        let testdata: Vec<u8> = iter::repeat(pat2).take(len).collect();
+        for v in testdata.clone().into_iter() { tx2.send(v).unwrap(); }
+        reader.read_exact(&mut rd_buf).unwrap();
+        assert_eq!(testdata, rd_buf);
+        rd_buf.resize(len, 0);
+
+        // ...and complete that first frame over channel 1.
+        tx1.send(pat1).unwrap();
+        reader.read_exact(&mut rd_buf).unwrap();
+        let expected: Vec<u8> = iter::repeat(pat1).take(len).collect();
+        assert_eq!(expected, rd_buf);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn read_unix_fifo() {
+        use libc;
+
+        let len = 10;
+        let (pat1, pat2) = (12, 42);
+
+        let tmp = tempdir::TempDir::new("read_unix_fifo").unwrap();
+        let fifo1_path = tmp.path().join("fifo1").into_os_string();
+        let fifo2_path = tmp.path().join("fifo2").into_os_string();
+        unsafe {
+            let f1 = ffi::CString::new(fifo1_path.to_str().unwrap()).unwrap();
+            let f2 = ffi::CString::new(fifo2_path.to_str().unwrap()).unwrap();
+            assert_eq!(0, libc::mkfifo(f1.as_ptr(), 0o666));
+            assert_eq!(0, libc::mkfifo(f2.as_ptr(), 0o666));
+        }
+
+        let mut reader = Reader::from_files(vec![ &fifo1_path, &fifo2_path ], len, Consume::Single).unwrap();
+        let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
+        let mut fifo2 = fs::OpenOptions::new().write(true).open(&fifo2_path).unwrap();
+
+        let mut rd_buf = Vec::new();
+        rd_buf.resize(len, 0);
+
+        // Send a partial frame over fifo 1...
+        copy_iter(&mut fifo1, iter::repeat(pat1).take(len - 1));
+
+        // Send and receive a full frame over fifo 2.
+        let testdata: Vec<u8> = iter::repeat(pat2).take(len).collect();
+        copy_iter(&mut fifo2, testdata.clone().into_iter());
+        reader.read_exact(&mut rd_buf).unwrap();
+        assert_eq!(testdata, rd_buf);
+        rd_buf.resize(len, 0);
+
+        // ...and complete that first frame over fifo 1.
+        copy_iter(&mut fifo1, iter::once(pat1));
+        reader.read_exact(&mut rd_buf).unwrap();
+        let expected: Vec<u8> = iter::repeat(pat1).take(len).collect();
+        assert_eq!(expected, rd_buf);
+
+        tmp.close().unwrap();
+    }
 }

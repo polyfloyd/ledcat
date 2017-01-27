@@ -9,3 +9,6 @@ clap = "*"
 ioctl = "*"
 libc = "*"
 regex = "*"
+
+[dev-dependencies]
+tempdir = "*"
