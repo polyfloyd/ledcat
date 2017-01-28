@@ -61,6 +61,10 @@ fn main() {
             .multiple(true)
             .default_value("-")
             .help("The inputs to read from. Read the manual for how inputs are read and prioritized."))
+        .arg(clap::Arg::with_name("linger")
+            .short("l")
+            .long("linger")
+            .help("Keep trying to read from the input(s) after EOF is reached"))
         .arg(clap::Arg::with_name("async")
             .long("async")
             .requires("framerate")
@@ -254,9 +258,14 @@ fn main() {
     } else {
          select::Consume::Single
     };
+    let input_eof = if matches.is_present("linger") {
+        select::WhenEOF::Retry
+    } else {
+        select::WhenEOF::Close
+    };
     let mut input = select::Reader::from_files(inputs.map(|f| {
         match f { "-" => "/dev/stdin", f => f }
-    }).collect(), dimensions.size() * 3, input_consume).unwrap();
+    }).collect(), dimensions.size() * 3, input_consume, input_eof).unwrap();
 
     let mut output = io::BufWriter::with_capacity(dev.written_frame_size(dimensions.size()), output);
 

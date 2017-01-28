@@ -22,15 +22,23 @@ pub enum Consume {
     All(time::Duration),
 }
 
+#[derive(Clone)]
+pub enum WhenEOF {
+    Close,
+    Retry,
+}
+
+
 pub struct Reader {
     consume:   Consume,
+    when_eof:  WhenEOF,
     receivers: Vec<mpsc::Receiver<Vec<u8>>>,
     current:   Option<io::Cursor<Vec<u8>>>,
 }
 
 impl Reader {
 
-    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, consume: Consume) -> io::Result<Reader>
+    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, consume: Consume, when_eof: WhenEOF) -> io::Result<Reader>
         where P: AsRef<path::Path> {
         let files: io::Result<Vec<fs::File>> = filenames.into_iter().map(|filename| {
             let mut open_opts = fs::OpenOptions::new();
@@ -64,21 +72,25 @@ impl Reader {
 
             Ok(file)
         }).collect();
-        Ok(Reader::from(try!(files), switch_after, consume))
+        Ok(Reader::from(try!(files), switch_after, consume, when_eof))
     }
 
-    pub fn from<R>(inputs: Vec<R>, switch_after: usize, consume: Consume) -> Reader
+    pub fn from<R>(inputs: Vec<R>, switch_after: usize, consume: Consume, when_eof: WhenEOF) -> Reader
         where R: io::Read + Send + 'static {
         assert_ne!(inputs.len(), 0);
 
         let receivers = inputs.into_iter().map(|mut input| {
             let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1);
             let consume = consume.clone();
+            let when_eof = when_eof.clone();
             thread::spawn(move || {
                 loop {
                     let mut buf = Vec::new();
                     buf.resize(switch_after, 0);
                     if let Err(_) = input.read_exact(&mut buf) {
+                        if let WhenEOF::Close = when_eof {
+                            return;
+                        }
                         thread::sleep(time::Duration::new(0, 1_000_000)); // TODO
                         continue;
                     }
@@ -102,6 +114,7 @@ impl Reader {
 
         Reader {
             consume:   consume,
+            when_eof:  when_eof,
             receivers: receivers,
             current:   None,
         }
@@ -114,13 +127,26 @@ impl io::Read for Reader {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         loop {
             if self.current.is_none() {
-                let buf = self.receivers.iter().fold(None, |buf, rx| {
-                    match self.consume {
-                        Consume::Single => buf.or_else(|| rx.try_recv().ok()),
-                        Consume::All(_) => buf.or(rx.try_recv().ok()),
-                    }
+                let recv = self.receivers.iter().fold(Err(false), |prev, rx| {
+                    let prev_active = match prev {
+                        Ok(_)       => true,
+                        Err(active) => active,
+                    };
+                    let recv = match self.consume {
+                        Consume::Single => prev.or_else(|_| rx.try_recv()),
+                        Consume::All(_) => prev.or(rx.try_recv()),
+                    };
+                    recv.map_err(|e| match e {
+                        mpsc::TryRecvError::Disconnected => prev_active,
+                        mpsc::TryRecvError::Empty        => true,
+                    })
                 });
-                self.current = buf.map(io::Cursor::new);
+                if let Err(false) = recv {
+                    if let WhenEOF::Close = self.when_eof {
+                        return Ok(0);
+                    }
+                }
+                self.current = recv.ok().map(io::Cursor::new);
             }
 
             if self.current.is_some() {
@@ -179,7 +205,7 @@ mod tests {
 
         let mut reader = Reader::from(vec![
             io::Cursor::new(testdata.clone()),
-        ], len, Consume::Single);
+        ], len, Consume::Single, WhenEOF::Close);
 
         for i in 0..num {
             let mut rd_buf = Vec::new();
@@ -187,8 +213,7 @@ mod tests {
             reader.read_exact(&mut rd_buf).unwrap();
             assert_eq!(testdata[len * i..len * (i + 1)], rd_buf[..]);
         }
-        // NOTE: The reader should now be empty and thus block any subsequent read.
-        // We can not really test this because of the halting problem. :(
+        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
     }
 
     #[test]
@@ -198,15 +223,25 @@ mod tests {
 
         let mut reader = Reader::from((1..num+1).map(|i| {
             IterReader(iter::repeat(i).take(len))
-        }).collect(), len, Consume::Single);
+        }).collect(), len, Consume::Single, WhenEOF::Close);
 
-        for i in 1..num+1 {
+        for i in 1..num + 1 {
             let mut rd_buf = Vec::new();
             rd_buf.resize(len, 0);
             reader.read_exact(&mut rd_buf).unwrap();
             let expected: Vec<u8> = iter::repeat(i).take(len).collect();
             assert_eq!(expected, rd_buf);
         }
+        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+    }
+
+    #[test]
+    fn read_eof() {
+        let mut reader = Reader::from(vec![
+            IterReader(iter::empty()),
+            IterReader(iter::empty()),
+        ], 1, Consume::Single, WhenEOF::Close);
+        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
     }
 
     #[test]
@@ -219,7 +254,7 @@ mod tests {
         let mut reader = Reader::from(vec![
             IterReader(rx1.into_iter()),
             IterReader(rx2.into_iter()),
-        ], len, Consume::Single);
+        ], len, Consume::Single, WhenEOF::Close);
 
         let mut rd_buf = Vec::new();
         rd_buf.resize(len, 0);
@@ -239,6 +274,10 @@ mod tests {
         reader.read_exact(&mut rd_buf).unwrap();
         let expected: Vec<u8> = iter::repeat(pat1).take(len).collect();
         assert_eq!(expected, rd_buf);
+
+        drop(tx1);
+        drop(tx2);
+        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
     }
 
     #[test]
@@ -259,7 +298,7 @@ mod tests {
             assert_eq!(0, libc::mkfifo(f2.as_ptr(), 0o666));
         }
 
-        let mut reader = Reader::from_files(vec![ &fifo1_path, &fifo2_path ], len, Consume::Single).unwrap();
+        let mut reader = Reader::from_files(vec![ &fifo1_path, &fifo2_path ], len, Consume::Single, WhenEOF::Close).unwrap();
         let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
         let mut fifo2 = fs::OpenOptions::new().write(true).open(&fifo2_path).unwrap();
 
@@ -281,6 +320,10 @@ mod tests {
         reader.read_exact(&mut rd_buf).unwrap();
         let expected: Vec<u8> = iter::repeat(pat1).take(len).collect();
         assert_eq!(expected, rd_buf);
+
+        drop(fifo1);
+        drop(fifo2);
+        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
 
         tmp.close().unwrap();
     }
