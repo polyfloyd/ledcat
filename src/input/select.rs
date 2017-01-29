@@ -173,6 +173,19 @@ mod tests {
     use std::sync::mpsc;
     use super::*;
 
+    macro_rules! timeout {
+        ($timeout:expr, $block:block) => {
+            let (tx, rx) = mpsc::sync_channel(1);
+            thread::spawn(move || {
+                $block;
+                let _ = tx.send(());
+            });
+            if let Err(_) = rx.recv_timeout($timeout) {
+                panic!("Timeout expired");
+            }
+        }
+    }
+
     struct IterReader<I: iter::Iterator<Item=u8>>(I);
 
     impl<I> io::Read for IterReader<I>
@@ -213,7 +226,9 @@ mod tests {
             reader.read_exact(&mut rd_buf).unwrap();
             assert_eq!(testdata[len * i..len * (i + 1)], rd_buf[..]);
         }
-        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        timeout!(time::Duration::new(1, 0), {
+            assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        });
     }
 
     #[test]
@@ -232,7 +247,9 @@ mod tests {
             let expected: Vec<u8> = iter::repeat(i).take(len).collect();
             assert_eq!(expected, rd_buf);
         }
-        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        timeout!(time::Duration::new(1, 0), {
+            assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        });
     }
 
     #[test]
@@ -241,7 +258,20 @@ mod tests {
             IterReader(iter::empty()),
             IterReader(iter::empty()),
         ], 1, Consume::Single, WhenEOF::Close);
-        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        timeout!(time::Duration::new(1, 0), {
+            assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        });
+    }
+
+    #[test]
+    #[should_panic]
+    fn read_eof_retry() {
+        let mut reader = Reader::from(vec![
+            IterReader(iter::empty()),
+        ], 1, Consume::Single, WhenEOF::Retry);
+        timeout!(time::Duration::new(0, 1_000_000), {
+            io::copy(&mut reader, &mut io::sink()).unwrap();
+        });
     }
 
     #[test]
@@ -277,7 +307,9 @@ mod tests {
 
         drop(tx1);
         drop(tx2);
-        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        timeout!(time::Duration::new(1, 0), {
+            assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        });
     }
 
     #[test]
@@ -323,7 +355,9 @@ mod tests {
 
         drop(fifo1);
         drop(fifo2);
-        assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        timeout!(time::Duration::new(1, 0), {
+            assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
+        });
 
         tmp.close().unwrap();
     }
