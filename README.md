@@ -18,7 +18,7 @@ nc -ul 1337 | ledcat --num-pixels 30 apa102 > /dev/spidev0.0
 ```sh
 # Load an image named "image.png", resize it to fit the size of the display and
 # send it to a ledstrip zigzagged over the Y-axis.
-convert image.png -resize -depth 75x8! RGB:- | \
+convert image.png -resize 75x8! -depth 8 RGB:- | \
     ledcat --geometry 75x8 --transpose zigzag_y apa102 > /dev/spidev0.0
 ```
 ```sh
