@@ -9,6 +9,7 @@ use std::thread;
 use std::time;
 use libc;
 
+
 /// Tells readers how to handle excessive data if more is produced from the inputs than is being
 /// read.
 #[derive(Clone)]
@@ -30,16 +31,20 @@ pub enum WhenEOF {
 
 
 pub struct Reader {
-    consume:   Consume,
-    when_eof:  WhenEOF,
+    consume: Consume,
+    when_eof: WhenEOF,
     receivers: Vec<mpsc::Receiver<Vec<u8>>>,
-    current:   Option<io::Cursor<Vec<u8>>>,
+    current: Option<io::Cursor<Vec<u8>>>,
 }
 
 impl Reader {
-
-    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, consume: Consume, when_eof: WhenEOF) -> io::Result<Reader>
-        where P: AsRef<path::Path> {
+    pub fn from_files<P>(filenames: Vec<P>,
+                         switch_after: usize,
+                         consume: Consume,
+                         when_eof: WhenEOF)
+                         -> io::Result<Reader>
+        where P: AsRef<path::Path>
+    {
         let files: io::Result<Vec<fs::File>> = filenames.into_iter().map(|filename| {
             let mut open_opts = fs::OpenOptions::new();
             open_opts.read(true);
@@ -75,61 +80,66 @@ impl Reader {
         Ok(Reader::from(try!(files), switch_after, consume, when_eof))
     }
 
-    pub fn from<R>(inputs: Vec<R>, switch_after: usize, consume: Consume, when_eof: WhenEOF) -> Reader
-        where R: io::Read + Send + 'static {
+    pub fn from<R>(inputs: Vec<R>,
+                   switch_after: usize,
+                   consume: Consume,
+                   when_eof: WhenEOF)
+                   -> Reader
+        where R: io::Read + Send + 'static
+    {
         assert_ne!(inputs.len(), 0);
 
-        let receivers = inputs.into_iter().map(|mut input| {
-            let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1);
-            let consume = consume.clone();
-            let when_eof = when_eof.clone();
-            thread::spawn(move || {
-                loop {
-                    let mut buf = Vec::new();
-                    buf.resize(switch_after, 0);
-                    if let Err(_) = input.read_exact(&mut buf) {
-                        if let WhenEOF::Close = when_eof {
-                            return;
+        let receivers = inputs.into_iter()
+            .map(|mut input| {
+                let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1);
+                let consume = consume.clone();
+                let when_eof = when_eof.clone();
+                thread::spawn(move || {
+                    loop {
+                        let mut buf = Vec::new();
+                        buf.resize(switch_after, 0);
+                        if let Err(_) = input.read_exact(&mut buf) {
+                            if let WhenEOF::Close = when_eof {
+                                return;
+                            }
+                            thread::sleep(time::Duration::new(0, 1_000_000)); // TODO
+                            continue;
                         }
-                        thread::sleep(time::Duration::new(0, 1_000_000)); // TODO
-                        continue;
+                        match consume {
+                            Consume::Single => {
+                                if let Err(_) = tx.send(buf) {
+                                    break;
+                                }
+                            }
+                            Consume::All(interval) => {
+                                if let Err(mpsc::TrySendError::Disconnected(_)) = tx.try_send(buf) {
+                                    break;
+                                }
+                                thread::sleep(interval);
+                            }
+                        };
                     }
-                    match consume {
-                        Consume::Single => {
-                            if let Err(_) = tx.send(buf) {
-                                break;
-                            }
-                        },
-                        Consume::All(interval) => {
-                            if let Err(mpsc::TrySendError::Disconnected(_)) = tx.try_send(buf) {
-                                break;
-                            }
-                            thread::sleep(interval);
-                        },
-                    };
-                }
-            });
-            rx
-        }).collect();
+                });
+                rx
+            })
+            .collect();
 
         Reader {
-            consume:   consume,
-            when_eof:  when_eof,
+            consume: consume,
+            when_eof: when_eof,
             receivers: receivers,
-            current:   None,
+            current: None,
         }
     }
-
 }
 
 impl io::Read for Reader {
-
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
         loop {
             if self.current.is_none() {
                 let recv = self.receivers.iter().fold(Err(false), |prev, rx| {
                     let prev_active = match prev {
-                        Ok(_)       => true,
+                        Ok(_) => true,
                         Err(active) => active,
                     };
                     let recv = match self.consume {
@@ -138,7 +148,7 @@ impl io::Read for Reader {
                     };
                     recv.map_err(|e| match e {
                         mpsc::TryRecvError::Disconnected => prev_active,
-                        mpsc::TryRecvError::Empty        => true,
+                        mpsc::TryRecvError::Empty => true,
                     })
                 });
                 if let Err(false) = recv {
@@ -161,7 +171,6 @@ impl io::Read for Reader {
             thread::sleep(time::Duration::new(0, 1_000_000)); // TODO
         }
     }
-
 }
 
 
@@ -186,22 +195,23 @@ mod tests {
         }
     }
 
-    struct IterReader<I: iter::Iterator<Item=u8>>(I);
+    struct IterReader<I: iter::Iterator<Item = u8>>(I);
 
     impl<I> io::Read for IterReader<I>
-        where I: iter::Iterator<Item=u8> {
+        where I: iter::Iterator<Item = u8>
+    {
         fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
             for i in 0..buf.len() {
                 match self.0.next() {
                     Some(b) => buf[i] = b,
-                    None    => return Ok(i),
+                    None => return Ok(i),
                 };
             }
             Ok(buf.len())
         }
     }
 
-    fn copy_iter<I: iter::Iterator<Item=u8>>(wr: &mut io::Write, it: I) {
+    fn copy_iter<I: iter::Iterator<Item = u8>>(wr: &mut io::Write, it: I) {
         let v: Vec<u8> = it.collect();
         wr.write(&v).unwrap();
         wr.flush().unwrap();
@@ -211,14 +221,15 @@ mod tests {
     fn read_one_input() {
         let len = 100;
         let num = 16;
-        let testdata: Vec<u8> = (1..num+1)
-            .fold(Box::from(iter::empty()) as Box<iter::Iterator<Item=_>>, |ch, i| {
-                Box::from(ch.chain(iter::repeat(i as u8).take(len)))
-            }).collect();
+        let testdata: Vec<u8> = (1..num + 1)
+            .fold(Box::from(iter::empty()) as Box<iter::Iterator<Item = _>>,
+                  |ch, i| Box::from(ch.chain(iter::repeat(i as u8).take(len))))
+            .collect();
 
-        let mut reader = Reader::from(vec![
-            io::Cursor::new(testdata.clone()),
-        ], len, Consume::Single, WhenEOF::Close);
+        let mut reader = Reader::from(vec![io::Cursor::new(testdata.clone())],
+                                      len,
+                                      Consume::Single,
+                                      WhenEOF::Close);
 
         for i in 0..num {
             let mut rd_buf = Vec::new();
@@ -236,9 +247,12 @@ mod tests {
         let len = 100;
         let num = 16;
 
-        let mut reader = Reader::from((1..num+1).map(|i| {
-            IterReader(iter::repeat(i).take(len))
-        }).collect(), len, Consume::Single, WhenEOF::Close);
+        let mut reader = Reader::from((1..num + 1)
+                                          .map(|i| IterReader(iter::repeat(i).take(len)))
+                                          .collect(),
+                                      len,
+                                      Consume::Single,
+                                      WhenEOF::Close);
 
         for i in 1..num + 1 {
             let mut rd_buf = Vec::new();
@@ -254,10 +268,10 @@ mod tests {
 
     #[test]
     fn read_eof() {
-        let mut reader = Reader::from(vec![
-            IterReader(iter::empty()),
-            IterReader(iter::empty()),
-        ], 1, Consume::Single, WhenEOF::Close);
+        let mut reader = Reader::from(vec![IterReader(iter::empty()), IterReader(iter::empty())],
+                                      1,
+                                      Consume::Single,
+                                      WhenEOF::Close);
         timeout!(time::Duration::new(1, 0), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
@@ -266,9 +280,10 @@ mod tests {
     #[test]
     #[should_panic]
     fn read_eof_retry() {
-        let mut reader = Reader::from(vec![
-            IterReader(iter::empty()),
-        ], 1, Consume::Single, WhenEOF::Retry);
+        let mut reader = Reader::from(vec![IterReader(iter::empty())],
+                                      1,
+                                      Consume::Single,
+                                      WhenEOF::Retry);
         timeout!(time::Duration::new(0, 1_000_000), {
             io::copy(&mut reader, &mut io::sink()).unwrap();
         });
@@ -281,20 +296,25 @@ mod tests {
 
         let (tx1, rx1) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-        let mut reader = Reader::from(vec![
-            IterReader(rx1.into_iter()),
-            IterReader(rx2.into_iter()),
-        ], len, Consume::Single, WhenEOF::Close);
+        let mut reader = Reader::from(vec![IterReader(rx1.into_iter()),
+                                           IterReader(rx2.into_iter())],
+                                      len,
+                                      Consume::Single,
+                                      WhenEOF::Close);
 
         let mut rd_buf = Vec::new();
         rd_buf.resize(len, 0);
 
         // Send a partial frame over channel 1...
-        for v in iter::repeat(pat1).take(len - 1) { tx1.send(v).unwrap(); }
+        for v in iter::repeat(pat1).take(len - 1) {
+            tx1.send(v).unwrap();
+        }
 
         // Send and receive a full frame over channel 2.
         let testdata: Vec<u8> = iter::repeat(pat2).take(len).collect();
-        for v in testdata.clone().into_iter() { tx2.send(v).unwrap(); }
+        for v in testdata.clone().into_iter() {
+            tx2.send(v).unwrap();
+        }
         reader.read_exact(&mut rd_buf).unwrap();
         assert_eq!(testdata, rd_buf);
         rd_buf.resize(len, 0);
@@ -330,7 +350,11 @@ mod tests {
             assert_eq!(0, libc::mkfifo(f2.as_ptr(), 0o666));
         }
 
-        let mut reader = Reader::from_files(vec![ &fifo1_path, &fifo2_path ], len, Consume::Single, WhenEOF::Close).unwrap();
+        let mut reader = Reader::from_files(vec![&fifo1_path, &fifo2_path],
+                                            len,
+                                            Consume::Single,
+                                            WhenEOF::Close)
+            .unwrap();
         let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
         let mut fifo2 = fs::OpenOptions::new().write(true).open(&fifo2_path).unwrap();
 

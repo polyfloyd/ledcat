@@ -4,14 +4,12 @@ pub enum Dimensions {
 }
 
 impl Dimensions {
-
     pub fn size(&self) -> usize {
         match *self {
             Dimensions::One(size) => size,
             Dimensions::Two(w, h) => w * h,
         }
     }
-
 }
 
 
@@ -20,11 +18,9 @@ pub trait Transposition {
 }
 
 impl Transposition for Vec<Box<Transposition>> {
-
     fn transpose(&self, index: usize) -> usize {
         self.iter().fold(index, |index, tr| tr.transpose(index))
     }
-
 }
 
 
@@ -33,25 +29,25 @@ pub struct Reverse {
 }
 
 impl Transposition for Reverse {
-
     fn transpose(&self, index: usize) -> usize {
         assert!(index < self.length);
         self.length - index - 1
     }
-
 }
 
 
-pub enum Axis { X, Y }
+pub enum Axis {
+    X,
+    Y,
+}
 
 pub struct Zigzag {
-    pub width:      usize,
-    pub height:     usize,
+    pub width: usize,
+    pub height: usize,
     pub major_axis: Axis,
 }
 
 impl Transposition for Zigzag {
-
     fn transpose(&self, index: usize) -> usize {
         assert!(index <= self.width * self.height);
         match self.major_axis {
@@ -63,7 +59,7 @@ impl Transposition for Zigzag {
                 } else {
                     x * self.height + self.height - y - 1
                 }
-            },
+            }
             Axis::Y => {
                 let y = index / self.width;
                 let x = if y % 2 == 0 {
@@ -72,11 +68,11 @@ impl Transposition for Zigzag {
                     self.width - index % self.width - 1
                 };
                 y * self.width + x
-            },
+            }
         }
     }
-
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -85,7 +81,8 @@ mod tests {
 
     fn transpose_all<T, I>(trans: T, input: I) -> Vec<usize>
         where T: Transposition,
-              I: iter::Iterator<Item=usize> {
+              I: iter::Iterator<Item = usize>
+    {
         input.map(|index| trans.transpose(index)).collect()
     }
 
@@ -97,19 +94,14 @@ mod tests {
 
     #[test]
     fn transopsition_list() {
-        let tr: Vec<Box<Transposition>> = vec![
-            Box::from(Zigzag {
-                width:      4,
-                height:     3,
-                major_axis: Axis::Y,
-            }),
-            Box::from(Reverse { length: 4 * 3 })
-        ];
-        assert_eq!(vec![
-            11, 10, 9, 8,
-            4,  5,  6, 7,
-            3,  2,  1, 0,
-        ], transpose_all(tr, 0..12));
+        let tr: Vec<Box<Transposition>> = vec![Box::from(Zigzag {
+                                                   width: 4,
+                                                   height: 3,
+                                                   major_axis: Axis::Y,
+                                               }),
+                                               Box::from(Reverse { length: 4 * 3 })];
+        assert_eq!(vec![11, 10, 9, 8, 4, 5, 6, 7, 3, 2, 1, 0],
+                   transpose_all(tr, 0..12));
     }
 
     #[test]
@@ -121,48 +113,34 @@ mod tests {
     #[test]
     fn zigzag_x() {
         let zz = Zigzag {
-            width:      3,
-            height:     3,
+            width: 3,
+            height: 3,
             major_axis: Axis::X,
         };
-        assert_eq!(vec![
-            0, 5, 6,
-            1, 4, 7,
-            2, 3, 8,
-        ], transpose_all(zz, 0..9));
+        assert_eq!(vec![0, 5, 6, 1, 4, 7, 2, 3, 8], transpose_all(zz, 0..9));
         let zz = Zigzag {
-            width:      4,
-            height:     3,
+            width: 4,
+            height: 3,
             major_axis: Axis::X,
         };
-        assert_eq!(vec![
-            0, 5, 6, 11,
-            1, 4, 7, 10,
-            2, 3, 8, 9,
-        ], transpose_all(zz, 0..12));
+        assert_eq!(vec![0, 5, 6, 11, 1, 4, 7, 10, 2, 3, 8, 9],
+                   transpose_all(zz, 0..12));
     }
 
     #[test]
     fn zigzag_y() {
         let zz = Zigzag {
-            width:      3,
-            height:     3,
+            width: 3,
+            height: 3,
             major_axis: Axis::Y,
         };
-        assert_eq!(vec![
-            0, 1, 2,
-            5, 4, 3,
-            6, 7, 8,
-        ], transpose_all(zz, 0..9));
+        assert_eq!(vec![0, 1, 2, 5, 4, 3, 6, 7, 8], transpose_all(zz, 0..9));
         let zz = Zigzag {
-            width:      4,
-            height:     3,
+            width: 4,
+            height: 3,
             major_axis: Axis::Y,
         };
-        assert_eq!(vec![
-            0, 1, 2,  3,
-            7, 6, 5,  4,
-            8, 9, 10, 11,
-        ], transpose_all(zz, 0..12));
+        assert_eq!(vec![0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11],
+                   transpose_all(zz, 0..12));
     }
 }

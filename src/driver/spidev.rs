@@ -5,6 +5,7 @@ use std::path;
 use regex;
 use device::*;
 
+
 ioctl!(write spi_ioc_wr_mode with b'k', 1; u8);
 ioctl!(write spi_ioc_wr_lsb_first with b'k', 2; u8);
 //ioctl!(write spi_ioc_wr_bits_per_word with b'k', 3; u8);
@@ -12,7 +13,7 @@ ioctl!(write spi_ioc_wr_max_speed_hz with b'k', 4; u32);
 //ioctl!(write spi_ioc_wr_mode32 with b'k', 5; u32);
 
 pub fn open(path: &path::PathBuf, dev: &Device, speed_hz: u32) -> io::Result<fs::File> {
-    let spidev = try!(fs::OpenOptions::new().write(true).open(path));
+    let spidev = fs::OpenOptions::new().write(true).open(path)?;
     let fd = spidev.as_raw_fd();
 
     let lsb_first: u8 = match dev.first_bit() {
@@ -20,7 +21,7 @@ pub fn open(path: &path::PathBuf, dev: &Device, speed_hz: u32) -> io::Result<fs:
         FirstBit::LSB => 1,
     };
     unsafe {
-        spi_ioc_wr_mode(fd, &(dev.clock_polarity()|(dev.clock_polarity()<<1)));
+        spi_ioc_wr_mode(fd, &(dev.clock_polarity() | (dev.clock_polarity() << 1)));
         spi_ioc_wr_lsb_first(fd, &lsb_first);
         spi_ioc_wr_max_speed_hz(fd, &speed_hz);
     }
@@ -31,22 +32,23 @@ pub fn open(path: &path::PathBuf, dev: &Device, speed_hz: u32) -> io::Result<fs:
 fn read_link_recursive(path: path::PathBuf) -> io::Result<path::PathBuf> {
     match fs::read_link(&path) {
         Ok(path) => read_link_recursive(path),
-        Err(err) => if err.raw_os_error() == Some(22) {
-            Ok(path)
-        } else {
-            Err(err)
-        },
+        Err(err) => {
+            if err.raw_os_error() == Some(22) {
+                Ok(path)
+            } else {
+                Err(err)
+            }
+        }
     }
 }
 
 pub fn is_spidev(path: &path::PathBuf) -> bool {
-    let devs = regex::RegexSet::new(&[
-        r"^/dev/spidev\d+\.\d+$",
-        r"^/sys/devices/.+/spi\d\.\d$",
-        r"^/sys/class/devices/.+/spi\d\.\d$",
-    ]).unwrap();
+    let devs = regex::RegexSet::new(&[r"^/dev/spidev\d+\.\d+$",
+                                      r"^/sys/devices/.+/spi\d\.\d$",
+                                      r"^/sys/class/devices/.+/spi\d\.\d$"])
+        .unwrap();
     match read_link_recursive(path.clone()) {
-        Ok(p)  => devs.is_match(p.to_str().unwrap()),
+        Ok(p) => devs.is_match(p.to_str().unwrap()),
         Err(_) => false,
     }
 }

@@ -3,10 +3,10 @@ use clap;
 use color::*;
 use device::*;
 
-pub struct Lpd8806 { }
+
+pub struct Lpd8806 {}
 
 impl Device for Lpd8806 {
-
     fn clock_phase(&self) -> u8 {
         0
     }
@@ -25,17 +25,12 @@ impl Device for Lpd8806 {
 
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         // FIXME: The number of zero bytes in the header and trailer should not be magic.
-        try!(writer.write_all(&[0x00; 10]));
+        writer.write_all(&[0x00; 10])?;
         for pix in pixels.iter().rev() {
-            try!(writer.write_all(&[
-                (pix.g >> 1) | 0x80,
-                (pix.r >> 1) | 0x80,
-                (pix.b >> 1) | 0x80,
-            ]));
+            writer.write_all(&[(pix.g >> 1) | 0x80, (pix.r >> 1) | 0x80, (pix.b >> 1) | 0x80])?;
         }
         writer.write_all(&[0x00; 50])
     }
-
 }
 
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
@@ -43,5 +38,5 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
 }
 
 pub fn from_command(_: &clap::ArgMatches) -> Box<Device> {
-    Box::new(Lpd8806{})
+    Box::new(Lpd8806 {})
 }

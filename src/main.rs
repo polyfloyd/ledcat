@@ -5,11 +5,6 @@ extern crate ioctl;
 extern crate libc;
 extern crate regex;
 
-mod color;
-mod device;
-mod driver;
-mod input;
-
 use std::borrow::Borrow;
 use std::collections;
 use std::fs;
@@ -28,6 +23,12 @@ use device::*;
 use driver::*;
 use input::*;
 use input::geometry::Transposition;
+
+mod color;
+mod device;
+mod driver;
+mod input;
+
 
 macro_rules! regex_validator {
     ($expression:expr) => ({
@@ -60,7 +61,8 @@ fn main() {
             .min_values(1)
             .multiple(true)
             .default_value("-")
-            .help("The inputs to read from. Read the manual for how inputs are read and prioritized."))
+            .help("The inputs to read from. Read the manual for how inputs are read and \
+                   prioritized."))
         .arg(clap::Arg::with_name("linger")
             .short("l")
             .long("linger")
@@ -68,7 +70,8 @@ fn main() {
         .arg(clap::Arg::with_name("async")
             .long("async")
             .requires("framerate")
-            .help("Instead of synchronously reading from one input at a time, consume all data concurrently, possibly dropping frames."))
+            .help("Instead of synchronously reading from one input at a time, consume all data \
+                   concurrently, possibly dropping frames."))
         .arg(clap::Arg::with_name("num-pixels")
             .short("n")
             .long("num-pixels")
@@ -89,18 +92,19 @@ fn main() {
             .takes_value(true)
             .min_values(1)
             .multiple(true)
-            .possible_values(&[ "reverse", "zigzag_x", "zigzag_y" ])
+            .possible_values(&["reverse", "zigzag_x", "zigzag_y"])
             .help("Apply one or more transpositions to the output"))
         .arg(clap::Arg::with_name("color-correction")
             .short("c")
             .long("color-correction")
             .takes_value(true)
-            .possible_values(&[ "none", "srgb" ])
+            .possible_values(&["none", "srgb"])
             .help("Override the default color correction. The default is determined per device."))
         .arg(clap::Arg::with_name("driver")
             .long("driver")
             .takes_value(true)
-            .help("The driver to use for the output. If this is not specified, the driver is automaticaly detected based on the output"))
+            .help("The driver to use for the output. If this is not specified, the driver is \
+                   automaticaly detected based on the output"))
         .arg(clap::Arg::with_name("spidev-clock")
             .long("spidev-clock")
             .takes_value(true)
@@ -121,27 +125,27 @@ fn main() {
         .subcommand(clap::SubCommand::with_name("artnet")
             .about("Control artnet DMX nodes via unicast and broadcast")
             .arg(clap::Arg::with_name("target")
-                 .short("t")
-                 .long("target")
-                 .takes_value(true)
-                 .min_values(1)
-                 .multiple(true)
-                 .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
-                     Ok(_)    => Ok(()),
-                     Err(err) => Err(format!("{} ({})", err, addr)),
-                 })
-                 .conflicts_with_all(&["discover", "broadcast"])
-                 .help("One or more target IP addresses"))
+                .short("t")
+                .long("target")
+                .takes_value(true)
+                .min_values(1)
+                .multiple(true)
+                .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(format!("{} ({})", err, addr)),
+                })
+                .conflicts_with_all(&["discover", "broadcast"])
+                .help("One or more target IP addresses"))
             .arg(clap::Arg::with_name("discover")
-                 .short("d")
-                 .long("discover")
-                 .conflicts_with_all(&["target", "broadcast"])
-                 .help("Discover artnet nodes"))
+                .short("d")
+                .long("discover")
+                .conflicts_with_all(&["target", "broadcast"])
+                .help("Discover artnet nodes"))
             .arg(clap::Arg::with_name("broadcast")
-                 .short("b")
-                 .long("broadcast")
-                 .conflicts_with_all(&["target", "discover"])
-                 .help("Broadcast to all devices in the network")));
+                .short("b")
+                .long("broadcast")
+                .conflicts_with_all(&["target", "discover"])
+                .help("Broadcast to all devices in the network")));
 
     let mut device_constructors = collections::HashMap::new();
     for device_init in device::devices() {
@@ -168,30 +172,37 @@ fn main() {
     let dimensions = if let Some(npix) = matches.value_of("num-pixels") {
         geometry::Dimensions::One(npix.parse::<usize>().unwrap())
     } else if let Some(geom) = matches.value_of("geometry") {
-        let parsed: Vec<usize> = geom.split('x').map(|d| -> usize {
-            d.parse::<usize>().unwrap()
-        }).collect();
+        let parsed: Vec<usize> = geom.split('x')
+            .map(|d| -> usize { d.parse::<usize>().unwrap() })
+            .collect();
         geometry::Dimensions::Two(parsed[0], parsed[1])
     } else {
-        writeln!(io::stderr(), "Please set the frame size through either --num-pixels or --geometry").unwrap();
+        writeln!(io::stderr(),
+                 "Please set the frame size through either --num-pixels or --geometry")
+            .unwrap();
         return;
     };
 
     let (output, dev) = if sub_name == "artnet" {
-        let dev: Box<Device> = Box::new(device::generic::Generic{ clock_phase: 0, clock_polarity: 0, first_bit: FirstBit::MSB });
+        let dev: Box<Device> = Box::new(device::generic::Generic {
+            clock_phase: 0,
+            clock_polarity: 0,
+            first_bit: FirstBit::MSB,
+        });
         let artnet_addrs = if sub_matches.unwrap().is_present("broadcast") {
-            vec![ artnet::broadcast_addr() ]
+            vec![artnet::broadcast_addr()]
         } else {
             sub_matches.unwrap().values_of("target").unwrap().map(|addr| {
                 net::SocketAddr::new(net::IpAddr::from_str(addr).unwrap(), artnet::PORT)
             }).collect()
         };
-        let output: Box<io::Write> = match artnet::Unicast::to(artnet_addrs, dimensions.size() * 3) {
-            Ok(out)  => Box::new(out),
+        let output: Box<io::Write> = match artnet::Unicast::to(artnet_addrs,
+                                                               dimensions.size() * 3) {
+            Ok(out) => Box::new(out),
             Err(err) => {
                 writeln!(io::stderr(), "{}", err).unwrap();
                 return;
-            },
+            }
         };
         (output, dev)
 
@@ -199,7 +210,7 @@ fn main() {
         let dev = device_constructors[sub_name](sub_matches.unwrap());
         let output_file = path::PathBuf::from(match matches.value_of("output").unwrap() {
             "-" => "/dev/stdout",
-            _   => matches.value_of("output").unwrap(),
+            _ => matches.value_of("output").unwrap(),
         });
 
         let driver_name = matches.value_of("driver")
@@ -207,23 +218,23 @@ fn main() {
             .or(driver::detect(&output_file));
         let driver_name = match driver_name {
             Some(n) => n,
-            None    => {
-                writeln!(io::stderr(), "Unable to determine the driver to use. Please set one using --driver.").unwrap();
+            None => {
+                writeln!(io::stderr(),
+                         "Unable to determine the driver to use. Please set one using --driver.")
+                    .unwrap();
                 return;
-            },
+            }
         };
         let output: Box<io::Write> = match driver_name.as_str() {
-            "none" => {
-                Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap())
-            },
+            "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
             "spidev" => {
                 let clock = matches.value_of("spidev-clock").unwrap().parse::<u32>().unwrap();
                 Box::new(spidev::open(&output_file, dev.borrow(), clock).unwrap())
-            },
+            }
             _ => {
                 writeln!(io::stderr(), "Unknown driver {}", driver_name).unwrap();
                 return;
-            },
+            }
         };
         (output, dev)
     };
@@ -232,49 +243,63 @@ fn main() {
         .map(|v| v.collect())
         .unwrap_or(vec![]);
     let transposition = match transposition_table(&dimensions, transpose) {
-        Ok(t)    => t,
+        Ok(t) => t,
         Err(err) => {
             writeln!(io::stderr(), "{}", err).unwrap();
             return;
-        },
+        }
     };
 
     let color_correction = matches.value_of("color-correction")
         .and_then(|name| match name {
             "none" => Some(Correction::none()),
             "srgb" => Some(Correction::srgb(255, 255, 255)),
-            _      => None,
+            _ => None,
         })
         .unwrap_or_else(|| dev.color_correction());
 
-    let frame_interval = matches.value_of("framerate").map(|fps| {
-        time::Duration::new(1, 0) / fps.parse::<u32>().unwrap()
-    });
+    let frame_interval = matches.value_of("framerate")
+        .map(|fps| time::Duration::new(1, 0) / fps.parse::<u32>().unwrap());
     let single_frame = matches.is_present("single-frame");
 
     let inputs = matches.values_of("input").unwrap();
     let input_consume = if matches.is_present("async") {
-         select::Consume::All(frame_interval.unwrap())
+        select::Consume::All(frame_interval.unwrap())
     } else {
-         select::Consume::Single
+        select::Consume::Single
     };
     let input_eof = if matches.is_present("linger") {
         select::WhenEOF::Retry
     } else {
         select::WhenEOF::Close
     };
-    let mut input = select::Reader::from_files(inputs.map(|f| {
-        match f { "-" => "/dev/stdin", f => f }
-    }).collect(), dimensions.size() * 3, input_consume, input_eof).unwrap();
+    let files = inputs.map(|f| match f {
+            "-" => "/dev/stdin",
+            f => f,
+        })
+        .collect();
+    let mut input =
+        select::Reader::from_files(files, dimensions.size() * 3, input_consume, input_eof).unwrap();
 
-    let mut output = io::BufWriter::with_capacity(dev.written_frame_size(dimensions.size()), output);
+    let mut output = io::BufWriter::with_capacity(dev.written_frame_size(dimensions.size()),
+                                                  output);
 
     if single_frame {
-        let _ = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition, &color_correction);
+        let _ = pipe_frame(&mut input,
+                           &mut output,
+                           dev.deref(),
+                           dimensions.size(),
+                           &transposition,
+                           &color_correction);
     } else {
         loop {
             let start = time::Instant::now();
-            if let Err(_) = pipe_frame(&mut input, &mut output, dev.deref(), dimensions.size(), &transposition, &color_correction) {
+            if let Err(_) = pipe_frame(&mut input,
+                                       &mut output,
+                                       dev.deref(),
+                                       dimensions.size(),
+                                       &transposition,
+                                       &color_correction) {
                 break;
             }
             if let Some(interval) = frame_interval {
@@ -287,47 +312,53 @@ fn main() {
     }
 }
 
-fn pipe_frame(mut input: &mut io::Read, mut output: &mut io::Write, dev: &Device, num_pixels: usize, transposition: &Vec<usize>, correction: &Correction) -> io::Result<()> {
+fn pipe_frame(mut input: &mut io::Read,
+              mut output: &mut io::Write,
+              dev: &Device,
+              num_pixels: usize,
+              transposition: &[usize],
+              correction: &Correction)
+              -> io::Result<()> {
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
     // transpositions.
     let mut buffer = Vec::new();
-    buffer.resize(num_pixels, Pixel{ r: 0, g: 0, b: 0 });
+    buffer.resize(num_pixels, Pixel { r: 0, g: 0, b: 0 });
     for i in 0..num_pixels {
-        buffer[transposition[i]] = correction.correct(try!(Pixel::read_rgb24(&mut input)));
+        buffer[transposition[i]] = correction.correct(Pixel::read_rgb24(&mut input)?);
     }
-    try!(dev.write_frame(&mut output, &buffer));
+    dev.write_frame(&mut output, &buffer)?;
     output.flush()
 }
 
-fn transposition_table(dimensions: &geometry::Dimensions, operations: Vec<&str>) -> Result<Vec<usize>, String> {
-    let transpositions: Vec<Box<geometry::Transposition>> = try!(operations.into_iter()
+fn transposition_table(dimensions: &geometry::Dimensions,
+                       operations: Vec<&str>)
+                       -> Result<Vec<usize>, String> {
+    let transpositions: Vec<Box<geometry::Transposition>> = operations.into_iter()
         .map(|name| -> Result<Box<geometry::Transposition>, String> {
             match name {
-                "reverse" => {
-                    Ok(Box::from(geometry::Reverse { length: dimensions.size() }))
-                },
+                "reverse" => Ok(Box::from(geometry::Reverse { length: dimensions.size() })),
                 "zigzag_x" | "zigzag_y" => {
                     let (w, h) = match *dimensions {
                         geometry::Dimensions::Two(x, y) => (x, y),
                         _ => return Err("Zigzag requires 2D geometry to be specified".to_string()),
                     };
                     Ok(Box::from(geometry::Zigzag {
-                        width:      w,
-                        height:     h,
+                        width: w,
+                        height: h,
                         major_axis: match name.chars().last().unwrap() {
                             'x' => geometry::Axis::X,
-                            _   => geometry::Axis::Y,
+                            _ => geometry::Axis::Y,
                         },
                     }))
-                },
+                }
                 _ => Err(format!("Unknown transposition: {}", name)),
             }
         })
-        .collect());
-    Ok((0..dimensions.size()).map(|index| {
-        transpositions.transpose(index)
-    }).collect())
+        .collect()?;
+    Ok((0..dimensions.size())
+        .map(|index| transpositions.transpose(index))
+        .collect())
 }
 
 fn artnet_discover() -> io::Result<()> {
@@ -355,14 +386,14 @@ fn artnet_discover() -> io::Result<()> {
                 close_tx.send(()).unwrap();
                 write!(&mut out, "\r").unwrap();
                 return Err(err);
-            },
+            }
         };
         if !discovered.contains(&node.0) {
             let ip_str = format!("{}", node.0.ip()); // Padding only works with strings. :(
-            try!(match node.1 {
-                Some(name) => writeln!(out, "\r{: <15} -> {}", ip_str, name),
-                None       => writeln!(out, "\r{: <15}", ip_str),
-            });
+            match node.1 {
+                Some(name) => writeln!(out, "\r{: <15} -> {}", ip_str, name)?,
+                None => writeln!(out, "\r{: <15}", ip_str)?,
+            };
         }
         discovered.insert(node.0);
     }
