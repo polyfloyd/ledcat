@@ -100,6 +100,21 @@ fn main() {
             .takes_value(true)
             .possible_values(&["none", "srgb"])
             .help("Override the default color correction. The default is determined per device."))
+        .arg(clap::Arg::with_name("dim")
+            .long("dim")
+            .takes_value(true)
+            .default_value("1.0")
+            .validator(|v| {
+                let f = v.parse::<f32>()
+                    .map_err(|e| format!("{}", e))?;
+                if 0.0 <= f && f <= 1.0 {
+                    Ok(())
+                } else {
+                    Err(format!("dim value out of range: {}", f))
+                }
+            })
+            .help("Apply a global grayscale after the collor correction. The value should be \
+                   between 0 and 1.0 inclusive"))
         .arg(clap::Arg::with_name("driver")
             .long("driver")
             .takes_value(true)
@@ -257,6 +272,11 @@ fn main() {
             _ => None,
         })
         .unwrap_or_else(|| dev.color_correction());
+    let dim = (matches.value_of("dim")
+            .unwrap()
+            .parse::<f32>()
+            .unwrap() * 255.0)
+        .round() as u8;
 
     let frame_interval = matches.value_of("framerate")
         .map(|fps| time::Duration::new(1, 0) / fps.parse::<u32>().unwrap());
@@ -290,7 +310,8 @@ fn main() {
                            dev.deref(),
                            dimensions.size(),
                            &transposition,
-                           &color_correction);
+                           &color_correction,
+                           dim);
     } else {
         loop {
             let start = time::Instant::now();
@@ -299,7 +320,8 @@ fn main() {
                                        dev.deref(),
                                        dimensions.size(),
                                        &transposition,
-                                       &color_correction) {
+                                       &color_correction,
+                                       dim) {
                 break;
             }
             if let Some(interval) = frame_interval {
@@ -317,7 +339,8 @@ fn pipe_frame(mut input: &mut io::Read,
               dev: &Device,
               num_pixels: usize,
               transposition: &[usize],
-              correction: &Correction)
+              correction: &Correction,
+              dim: u8)
               -> io::Result<()> {
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
@@ -325,7 +348,12 @@ fn pipe_frame(mut input: &mut io::Read,
     let mut buffer = Vec::new();
     buffer.resize(num_pixels, Pixel { r: 0, g: 0, b: 0 });
     for i in 0..num_pixels {
-        buffer[transposition[i]] = correction.correct(Pixel::read_rgb24(&mut input)?);
+        let p = correction.correct(Pixel::read_rgb24(&mut input)?);
+        let o = &mut buffer[transposition[i]];
+        let dim16 = dim as u16;
+        o.r = ((p.r as u16 * dim16) / 0xff) as u8;
+        o.g = ((p.g as u16 * dim16) / 0xff) as u8;
+        o.b = ((p.b as u16 * dim16) / 0xff) as u8;
     }
     dev.write_frame(&mut output, &buffer)?;
     output.flush()
