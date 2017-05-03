@@ -334,7 +334,7 @@ fn pipe_frame(mut input: &mut io::Read,
 fn transposition_table(dimensions: &geometry::Dimensions,
                        operations: Vec<&str>)
                        -> Result<Vec<usize>, String> {
-    let transpositions: Vec<Box<geometry::Transposition>> = operations.into_iter()
+    let transpositions: Vec<Box<geometry::Transposition>> = try!(operations.into_iter()
         .map(|name| -> Result<Box<geometry::Transposition>, String> {
             match name {
                 "reverse" => Ok(Box::from(geometry::Reverse { length: dimensions.size() })),
@@ -355,7 +355,7 @@ fn transposition_table(dimensions: &geometry::Dimensions,
                 _ => Err(format!("Unknown transposition: {}", name)),
             }
         })
-        .collect()?;
+        .collect());
     Ok((0..dimensions.size())
         .map(|index| transpositions.transpose(index))
         .collect())
