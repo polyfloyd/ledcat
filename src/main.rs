@@ -149,18 +149,24 @@ fn main() {
                     Ok(_) => Ok(()),
                     Err(err) => Err(format!("{} ({})", err, addr)),
                 })
-                .conflicts_with_all(&["discover", "broadcast"])
+                .conflicts_with_all(&["discover", "target-list", "broadcast"])
                 .help("One or more target IP addresses"))
-            .arg(clap::Arg::with_name("discover")
-                .short("d")
-                .long("discover")
-                .conflicts_with_all(&["target", "broadcast"])
-                .help("Discover artnet nodes"))
+            .arg(clap::Arg::with_name("target-list")
+                .long("target-list")
+                .takes_value(true)
+                .conflicts_with_all(&["target", "discover", "broadcast"])
+                .help("Specify a file containing 1 IP address per line to unicast to. \
+                       Changes to the file are read automatically"))
             .arg(clap::Arg::with_name("broadcast")
                 .short("b")
                 .long("broadcast")
-                .conflicts_with_all(&["target", "discover"])
-                .help("Broadcast to all devices in the network")));
+                .conflicts_with_all(&["target", "target-list", "discover"])
+                .help("Broadcast to all devices in the network"))
+            .arg(clap::Arg::with_name("discover")
+                .short("d")
+                .long("discover")
+                .conflicts_with_all(&["target", "target-list", "broadcast"])
+                .help("Discover artnet nodes")));
 
     let mut device_constructors = collections::HashMap::new();
     for device_init in device::devices() {
@@ -199,15 +205,18 @@ fn main() {
     };
 
     let (output, dev) = if sub_name == "artnet" {
+        let sub_matches = sub_matches.unwrap();
         let dev: Box<Device> = Box::new(device::generic::Generic {
             clock_phase: 0,
             clock_polarity: 0,
             first_bit: FirstBit::MSB,
         });
-        let artnet_target: Box<artnet::Target> = if sub_matches.unwrap().is_present("broadcast") {
-            Box::from(artnet::Broadcast{})
+        let artnet_target: Box<artnet::Target> = if sub_matches.is_present("broadcast") {
+            Box::new(artnet::Broadcast{})
+        } else if let Some(list_path) = sub_matches.value_of("target-list") {
+            Box::new(artnet::ListFile::new(list_path))
         } else {
-            let addresses: Vec<_> = sub_matches.unwrap().values_of("target").unwrap().map(|addr| {
+            let addresses: Vec<_> = sub_matches.values_of("target").unwrap().map(|addr| {
                 net::SocketAddr::new(net::IpAddr::from_str(addr).unwrap(), artnet::PORT)
             }).collect();
             Box::new(addresses)
