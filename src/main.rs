@@ -113,7 +113,7 @@ fn main() {
                     Err(format!("dim value out of range: {}", f))
                 }
             })
-            .help("Apply a global grayscale after the collor correction. The value should be \
+            .help("Apply a global grayscale before the collor correction. The value should be \
                    between 0 and 1.0 inclusive"))
         .arg(clap::Arg::with_name("driver")
             .long("driver")
@@ -348,12 +348,17 @@ fn pipe_frame(mut input: &mut io::Read,
     let mut buffer = Vec::new();
     buffer.resize(num_pixels, Pixel { r: 0, g: 0, b: 0 });
     for i in 0..num_pixels {
-        let p = correction.correct(Pixel::read_rgb24(&mut input)?);
-        let o = &mut buffer[transposition[i]];
-        let dim16 = dim as u16;
-        o.r = ((p.r as u16 * dim16) / 0xff) as u8;
-        o.g = ((p.g as u16 * dim16) / 0xff) as u8;
-        o.b = ((p.b as u16 * dim16) / 0xff) as u8;
+        let pix_in = Pixel::read_rgb24(&mut input)?;
+        let pix_dimmed = {
+            let dim16 = dim as u16;
+            Pixel {
+                r: ((pix_in.r as u16 * dim16) / 0xff) as u8,
+                g: ((pix_in.g as u16 * dim16) / 0xff) as u8,
+                b: ((pix_in.b as u16 * dim16) / 0xff) as u8,
+            }
+        };
+        let pix_corrected = correction.correct(pix_dimmed);
+        buffer[transposition[i]] = pix_corrected;
     }
     dev.write_frame(&mut output, &buffer)?;
     output.flush()
