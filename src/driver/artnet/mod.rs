@@ -10,26 +10,29 @@ use std::time;
 use libc;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 
+mod target;
+pub use self::target::*;
+
 
 pub const PORT: u16 = 6454;
 
 pub struct Unicast {
     socket: net::UdpSocket,
-    to_addr: Vec<net::SocketAddr>,
+    target: Box<Target>,
     frame_size: usize,
     frame_buffer: Vec<u8>,
 }
 
 impl Unicast {
-    pub fn to(addr: Vec<net::SocketAddr>, frame_size: usize) -> io::Result<Unicast> {
+    pub fn to(target: Box<Target>, frame_size: usize) -> io::Result<Unicast> {
         let socket = unsafe { reuse_bind(("0.0.0.0", PORT)) }?;
         socket.set_broadcast(true)?;
         Ok(Unicast {
-            socket: socket,
-            to_addr: addr,
-            frame_size: frame_size,
-            frame_buffer: Vec::with_capacity(frame_size),
-        })
+               socket,
+               target,
+               frame_size,
+               frame_buffer: Vec::with_capacity(frame_size),
+           })
     }
 }
 
@@ -48,15 +51,20 @@ impl io::Write for Unicast {
         let mut packet = Vec::new();
         art_dmx_packet(&mut packet, &self.frame_buffer)?;
         self.frame_buffer = new_buf;
-        for addr in &self.to_addr {
+        for addr in self.target.addresses().iter() {
             self.socket.send_to(&packet, addr)?;
         }
         Ok(())
     }
 }
 
+
 pub fn broadcast_addr() -> net::SocketAddr {
-    ("255.255.255.255", PORT).to_socket_addrs().unwrap().next().unwrap()
+    ("255.255.255.255", PORT)
+        .to_socket_addrs()
+        .unwrap()
+        .next()
+        .unwrap()
 }
 
 pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<String>)>> {
@@ -97,9 +105,7 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<St
                 let mut rdr = io::Cursor::new(&recv_buf[8..10]);
                 let opcode = try_or_send!(rdr.read_u16::<LittleEndian>());
                 if opcode == 0x2100 {
-                    let short_name = str::from_utf8(&recv_buf[19..38])
-                        .map(String::from)
-                        .ok();
+                    let short_name = str::from_utf8(&recv_buf[19..38]).map(String::from).ok();
                     tx.send(Ok((sender_addr, short_name))).unwrap();
                 }
             }
@@ -109,7 +115,9 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<St
     rx
 }
 
-fn art_poll_packet(wr: &mut io::Write) -> io::Result<()> {
+fn art_poll_packet<W>(mut wr: W) -> io::Result<()>
+    where W: io::Write
+{
     wr.write(b"Art-Net\0")?; // Artnet Header
     wr.write_u16::<LittleEndian>(0x2000)?; // OpCode
     wr.write_u8(4)?; // ProtVerHi
@@ -119,8 +127,10 @@ fn art_poll_packet(wr: &mut io::Write) -> io::Result<()> {
     Ok(())
 }
 
-fn art_dmx_packet(wr: &mut io::Write, data: &[u8]) -> io::Result<()> {
-    if data.len() > 0xffff {
+fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
+    where W: io::Write
+{
+    if data.len() >= 0xffff {
         return Err(io::Error::new(io::ErrorKind::Other, "data exceeds max dmx packet length"));
     }
     wr.write(b"Art-Net\0")?; // Artnet Header
@@ -132,9 +142,7 @@ fn art_dmx_packet(wr: &mut io::Write, data: &[u8]) -> io::Result<()> {
     wr.write_u8(0)?; // SubUni
     wr.write_u8(0)?; // Net
     wr.write_u16::<BigEndian>(data.len() as u16)?; // Length
-    for b in data {
-        wr.write_u8(*b)?; // Data
-    }
+    wr.write_all(data)?; // Data
     Ok(())
 }
 
@@ -166,7 +174,9 @@ unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSo
                 sin_family: libc::AF_INET as u16,
                 sin_port: (addr.port() >> 8) | (addr.port() << 8), // WTF
                 sin_addr: libc::in_addr {
-                    s_addr: io::Cursor::new(addr.ip().octets()).read_u32::<BigEndian>().unwrap(),
+                    s_addr: io::Cursor::new(addr.ip().octets())
+                        .read_u32::<BigEndian>()
+                        .unwrap(),
                 },
                 sin_zero: [0; 8],
             }

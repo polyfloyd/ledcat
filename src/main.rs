@@ -204,14 +204,15 @@ fn main() {
             clock_polarity: 0,
             first_bit: FirstBit::MSB,
         });
-        let artnet_addrs = if sub_matches.unwrap().is_present("broadcast") {
-            vec![artnet::broadcast_addr()]
+        let artnet_target: Box<artnet::Target> = if sub_matches.unwrap().is_present("broadcast") {
+            Box::from(artnet::Broadcast{})
         } else {
-            sub_matches.unwrap().values_of("target").unwrap().map(|addr| {
+            let addresses: Vec<_> = sub_matches.unwrap().values_of("target").unwrap().map(|addr| {
                 net::SocketAddr::new(net::IpAddr::from_str(addr).unwrap(), artnet::PORT)
-            }).collect()
+            }).collect();
+            Box::new(addresses)
         };
-        let output: Box<io::Write> = match artnet::Unicast::to(artnet_addrs,
+        let output: Box<io::Write> = match artnet::Unicast::to(artnet_target,
                                                                dimensions.size() * 3) {
             Ok(out) => Box::new(out),
             Err(err) => {
