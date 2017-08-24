@@ -4,11 +4,11 @@ version = "0.0.1"
 authors = ["polyfloyd <floyd@polyfloyd.net>"]
 
 [dependencies]
-byteorder = "~1.0.0"
-clap = "~2.20.0"
-ioctl = "~0.3.3"
-libc = "^0.2.18"
-regex = "~0.2.1"
+byteorder = "~1.1.0"
+clap = "~2.26.0"
+ioctl = { version = "0.3.4", git = "https://github.com/cmr/ioctl.git" }
+libc = "^0.2.29"
+regex = "~0.2.2"
 
 [dev-dependencies]
 tempdir = "~0.3"
