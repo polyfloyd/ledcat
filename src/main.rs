@@ -188,13 +188,13 @@ fn main() {
     if sub_name == "" {
         let mut out = io::stderr();
         cli.write_help(&mut out).unwrap();
-        writeln!(out, "").unwrap();
+        eprintln!();
         return;
     }
 
     if sub_name == "artnet" && sub_matches.unwrap().is_present("discover") {
         if let Err(err) = artnet_discover() {
-            writeln!(io::stderr(), "{}", err).unwrap();
+            eprintln!("{}", err);
         }
         return;
     }
@@ -207,9 +207,7 @@ fn main() {
             .collect();
         geometry::Dimensions::Two(parsed[0], parsed[1])
     } else {
-        writeln!(io::stderr(),
-                 "Please set the frame size through either --num-pixels or --geometry")
-            .unwrap();
+        eprintln!("Please set the frame size through either --num-pixels or --geometry");
         return;
     };
 
@@ -234,7 +232,7 @@ fn main() {
                                                                dimensions.size() * 3) {
             Ok(out) => Box::new(out),
             Err(err) => {
-                writeln!(io::stderr(), "{}", err).unwrap();
+                eprintln!("{}", err);
                 return;
             }
         };
@@ -253,9 +251,7 @@ fn main() {
         let driver_name = match driver_name {
             Some(n) => n,
             None => {
-                writeln!(io::stderr(),
-                         "Unable to determine the driver to use. Please set one using --driver.")
-                    .unwrap();
+                eprintln!("Unable to determine the driver to use. Please set one using --driver.");
                 return;
             }
         };
@@ -270,7 +266,7 @@ fn main() {
                 Box::new(serial::open(&output_file, baudrate).unwrap())
             },
             _ => {
-                writeln!(io::stderr(), "Unknown driver {}", driver_name).unwrap();
+                eprintln!("Unknown driver {}", driver_name);
                 return;
             }
         };
@@ -283,7 +279,7 @@ fn main() {
     let transposition = match transposition_table(&dimensions, transpose) {
         Ok(t) => t,
         Err(err) => {
-            writeln!(io::stderr(), "{}", err).unwrap();
+            eprintln!("{}", err);
             return;
         }
     };
@@ -434,21 +430,20 @@ fn artnet_discover() -> io::Result<()> {
         }
     });
 
-    let mut out = io::stderr();
     for result in discovery_stream {
         let node = match result {
             Ok(node) => node,
             Err(err) => {
                 close_tx.send(()).unwrap();
-                write!(&mut out, "\r").unwrap();
+                eprint!("\r");
                 return Err(err);
             }
         };
         if !discovered.contains(&node.0) {
             let ip_str = format!("{}", node.0.ip()); // Padding only works with strings. :(
             match node.1 {
-                Some(name) => writeln!(out, "\r{: <15} -> {}", ip_str, name)?,
-                None => writeln!(out, "\r{: <15}", ip_str)?,
+                Some(name) => eprintln!("\r{: <15} -> {}", ip_str, name),
+                None => eprintln!("\r{: <15}", ip_str),
             };
         }
         discovered.insert(node.0);
