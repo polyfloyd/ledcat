@@ -29,26 +29,10 @@ pub fn open(path: &path::PathBuf, dev: &Device, speed_hz: u32) -> io::Result<fs:
     Ok(spidev)
 }
 
-fn read_link_recursive(path: path::PathBuf) -> io::Result<path::PathBuf> {
-    match fs::read_link(&path) {
-        Ok(path) => read_link_recursive(path),
-        Err(err) => {
-            if err.raw_os_error() == Some(22) {
-                Ok(path)
-            } else {
-                Err(err)
-            }
-        }
-    }
-}
-
 pub fn is_spidev(path: &path::PathBuf) -> bool {
     let devs = regex::RegexSet::new(&[r"^/dev/spidev\d+\.\d+$",
                                       r"^/sys/devices/.+/spi\d\.\d$",
                                       r"^/sys/class/devices/.+/spi\d\.\d$"])
         .unwrap();
-    match read_link_recursive(path.clone()) {
-        Ok(p) => devs.is_match(p.to_str().unwrap()),
-        Err(_) => false,
-    }
+    devs.is_match(path.to_str().unwrap())
 }

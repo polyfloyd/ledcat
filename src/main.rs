@@ -1,8 +1,11 @@
 extern crate byteorder;
 extern crate clap;
 #[macro_use]
+extern crate derive_error;
+#[macro_use]
 extern crate ioctl;
 extern crate libc;
+extern crate nix;
 extern crate regex;
 
 use std::borrow::Borrow;
@@ -126,6 +129,12 @@ fn main() {
             .validator(regex_validator!(r"^[1-9]\d*$"))
             .default_value("500000")
             .help("If spidev is used as driver, use this to set the clock frequency in Hertz"))
+        .arg(clap::Arg::with_name("serial-baudrate")
+            .long("serial-baudrate")
+            .takes_value(true)
+            .validator(regex_validator!(r"^[1-9]\d*$"))
+            .default_value("12000000")
+            .help("If serial is used as driver, use this to set the baudrate"))
         .arg(clap::Arg::with_name("framerate")
             .short("f")
             .long("framerate")
@@ -255,7 +264,11 @@ fn main() {
             "spidev" => {
                 let clock = matches.value_of("spidev-clock").unwrap().parse::<u32>().unwrap();
                 Box::new(spidev::open(&output_file, dev.borrow(), clock).unwrap())
-            }
+            },
+            "serial" => {
+                let baudrate = matches.value_of("serial-baudrate").unwrap().parse::<u32>().unwrap();
+                Box::new(serial::open(&output_file, baudrate).unwrap())
+            },
             _ => {
                 writeln!(io::stderr(), "Unknown driver {}", driver_name).unwrap();
                 return;

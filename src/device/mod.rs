@@ -3,8 +3,9 @@ use clap;
 use color::*;
 
 pub mod apa102;
-pub mod lpd8806;
 pub mod generic;
+pub mod hexws2811;
+pub mod lpd8806;
 
 
 #[derive(Clone)]
@@ -32,6 +33,7 @@ pub trait Device {
 
 pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, fn(&clap::ArgMatches) -> Box<Device>)> {
     vec![(apa102::command(), apa102::from_command),
-         (lpd8806::command(), lpd8806::from_command),
-         (generic::command(), generic::from_command)]
+         (generic::command(), generic::from_command),
+         (hexws2811::command(), hexws2811::from_command),
+         (lpd8806::command(), lpd8806::from_command)]
 }
