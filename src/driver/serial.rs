@@ -1,12 +1,11 @@
 use std::fs;
-use std::io;
 use std::os::unix::io::AsRawFd;
 use std::path;
 use nix::sys::termios;
-use nix;
 use regex;
+use driver;
 
-pub fn open(path: &path::PathBuf, baudrate: u32) -> Result<fs::File, Error> {
+pub fn open(path: &path::PathBuf, baudrate: u32) -> Result<fs::File, driver::Error> {
     let tty = fs::OpenOptions::new()
         .write(true)
         .read(true)
@@ -61,10 +60,4 @@ fn map_baudrate(b: u32) -> termios::BaudRate {
         b if b > 50 => termios::BaudRate::B50,
             _ => termios::BaudRate::B0,
     }
-}
-
-#[derive(Debug, Error)]
-pub enum Error {
-    Io(io::Error),
-    Nix(nix::Error),
 }

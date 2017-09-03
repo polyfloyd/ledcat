@@ -2,9 +2,8 @@ extern crate byteorder;
 extern crate clap;
 #[macro_use]
 extern crate derive_error;
-#[macro_use]
-extern crate ioctl;
 extern crate libc;
+#[macro_use]
 extern crate nix;
 extern crate regex;
 

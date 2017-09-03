@@ -1,6 +1,7 @@
 use std::fs;
 use std::io;
 use std::path;
+use nix;
 
 pub mod artnet;
 pub mod serial;
@@ -36,4 +37,10 @@ fn read_link_recursive(path: &path::PathBuf) -> io::Result<path::PathBuf> {
             }
         }
     }
+}
+
+#[derive(Debug, Error)]
+pub enum Error {
+    Io(io::Error),
+    Nix(nix::Error),
 }
