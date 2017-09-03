@@ -87,13 +87,13 @@ mod tests {
     }
 
     #[test]
-    fn dimenstions() {
+    fn dimensions() {
         assert_eq!(42, Dimensions::One(42).size());
         assert_eq!(80, Dimensions::Two(4, 20).size());
     }
 
     #[test]
-    fn transopsition_list() {
+    fn transposition_list() {
         let tr: Vec<Box<Transposition>> = vec![Box::from(Zigzag {
                                                    width: 4,
                                                    height: 3,
