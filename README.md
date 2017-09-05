@@ -6,6 +6,9 @@ while also providing a simple standard interface for programs.
 
 Simply create a program that outputs 3 bytes of RGB for each pixel in your strip.
 
+## Documentation
+* [Transposition and display geometry](doc/transposition.md)
+
 ## Usage Examples
 ```sh
 # Make a strip of 30 apa102 leds all red.
