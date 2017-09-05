@@ -1,5 +1,6 @@
 ledcat
 ======
+[![](https://img.shields.io/crates/v/ledcat.svg)](https://crates.io/crates/ledcat)
 
 Ledcat is simple utility that aims to provide a standard interface for driving
 LED-strips and such.
