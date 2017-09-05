@@ -1,7 +1,9 @@
 [package]
 name = "ledcat"
+description = "Ledcat is simple utility that aims to provide a standard interface for driving LED-strips and such"
 version = "0.0.1"
 authors = ["polyfloyd <floyd@polyfloyd.net>"]
+license = "GPL-3.0"
 
 [dependencies]
 byteorder = "~1.1.0"

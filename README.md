@@ -1,8 +1,8 @@
 ledcat
 ======
 
-ledcat is simple utility that aims to be able to drive any kind of LED-strip
-while also providing a simple standard interface for programs.
+Ledcat is simple utility that aims to provide a standard interface for driving
+LED-strips and such.
 
 Simply create a program that outputs 3 bytes of RGB for each pixel in your strip.
 
