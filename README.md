@@ -49,5 +49,5 @@ ledcat --input /tmp/ambient /tmp/messages --linger --num-pixels 30 apa102 > /dev
 
 ### Supported Device Types:
 * apa102
-* [HexWS2811](https://github.com/brainsmoke/HexWS2811) (and maybe the OctoWS2811 as well)
+* [HexWS2811](https://github.com/brainsmoke/hex2811-penta)
 * lpd8806
