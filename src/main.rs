@@ -19,31 +19,19 @@ use std::str::FromStr;
 use std::sync;
 use std::thread;
 use std::time;
-use regex::Regex;
 use color::*;
 use device::*;
 use driver::*;
 use input::*;
 use input::geometry::Transposition;
 
+#[macro_use]
+mod util;
 mod color;
 mod device;
 mod driver;
 mod input;
 
-
-macro_rules! regex_validator {
-    ($expression:expr) => ({
-        let ex = Regex::new($expression).unwrap();
-        move |val: String| {
-            if ex.is_match(val.as_str()) {
-                Ok(())
-            } else {
-                Err(format!("\"{}\" does not match {}", val, ex))
-            }
-        }
-    })
-}
 
 fn main() {
     let mut cli = clap::App::new("ledcat")
@@ -122,12 +110,6 @@ fn main() {
             .takes_value(true)
             .help("The driver to use for the output. If this is not specified, the driver is \
                    automaticaly detected based on the output"))
-        .arg(clap::Arg::with_name("spidev-clock")
-            .long("spidev-clock")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .default_value("500000")
-            .help("If spidev is used as driver, use this to set the clock frequency in Hertz"))
         .arg(clap::Arg::with_name("serial-baudrate")
             .long("serial-baudrate")
             .takes_value(true)
@@ -212,11 +194,7 @@ fn main() {
 
     let (output, dev) = if sub_name == "artnet" {
         let sub_matches = sub_matches.unwrap();
-        let dev: Box<Device> = Box::new(device::generic::Generic {
-            clock_phase: 0,
-            clock_polarity: 0,
-            first_bit: FirstBit::MSB,
-        });
+        let dev: Box<Device> = Box::new(device::generic::Generic {});
         let artnet_target: Box<artnet::Target> = if sub_matches.is_present("broadcast") {
             Box::new(artnet::Broadcast{})
         } else if let Some(list_path) = sub_matches.value_of("target-list") {
@@ -257,8 +235,7 @@ fn main() {
         let output: Box<io::Write> = match driver_name.as_str() {
             "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
             "spidev" => {
-                let clock = matches.value_of("spidev-clock").unwrap().parse::<u32>().unwrap();
-                Box::new(spidev::open(&output_file, dev.borrow(), clock).unwrap())
+                Box::new(spidev::open(&output_file, dev.borrow()).unwrap())
             },
             "serial" => {
                 let baudrate = matches.value_of("serial-baudrate").unwrap().parse::<u32>().unwrap();

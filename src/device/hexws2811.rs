@@ -6,18 +6,6 @@ use clap;
 pub struct HexWS2811 {}
 
 impl Device for HexWS2811 {
-    fn clock_phase(&self) -> u8 {
-        0
-    }
-
-    fn clock_polarity(&self) -> u8 {
-        0
-    }
-
-    fn first_bit(&self) -> FirstBit {
-        FirstBit::MSB
-    }
-
     fn color_correction(&self) -> Correction {
         Correction::srgb(255, 255, 255)
     }

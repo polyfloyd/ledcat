@@ -41,6 +41,7 @@ fn read_link_recursive(path: &path::PathBuf) -> io::Result<path::PathBuf> {
 
 #[derive(Debug, Error)]
 pub enum Error {
+    DeviceNotSupported,
     Io(io::Error),
     Nix(nix::Error),
 }

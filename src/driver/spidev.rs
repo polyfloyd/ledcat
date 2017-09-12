@@ -10,18 +10,35 @@ ioctl!(write_ptr spi_ioc_wr_mode with b'k', 1; u8);
 ioctl!(write_ptr spi_ioc_wr_lsb_first with b'k', 2; u8);
 ioctl!(write_ptr spi_ioc_wr_max_speed_hz with b'k', 4; u32);
 
-pub fn open(path: &path::PathBuf, dev: &Device, speed_hz: u32) -> Result<fs::File, driver::Error> {
+#[derive(Copy, Clone, Debug)]
+pub enum FirstBit {
+    LSB,
+    MSB,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Config {
+    pub clock_polarity: u8,
+    pub clock_phase: u8,
+    pub first_bit: FirstBit,
+    pub speed_hz: u32,
+}
+
+pub fn open(path: &path::PathBuf, dev: &Device) -> Result<fs::File, driver::Error> {
     let spidev = fs::OpenOptions::new().write(true).open(path)?;
     let fd = spidev.as_raw_fd();
 
-    let lsb_first: u8 = match dev.first_bit() {
+    let conf = dev.spidev_config()
+        .ok_or(driver::Error::DeviceNotSupported)?;
+
+    let lsb_first: u8 = match conf.first_bit {
         FirstBit::MSB => 0,
         FirstBit::LSB => 1,
     };
     unsafe {
-        spi_ioc_wr_mode(fd, &(dev.clock_polarity() | (dev.clock_polarity() << 1)))?;
+        spi_ioc_wr_mode(fd, &(conf.clock_polarity | (conf.clock_polarity << 1)))?;
         spi_ioc_wr_lsb_first(fd, &lsb_first)?;
-        spi_ioc_wr_max_speed_hz(fd, &speed_hz)?;
+        spi_ioc_wr_max_speed_hz(fd, &conf.speed_hz)?;
     }
 
     Ok(spidev)

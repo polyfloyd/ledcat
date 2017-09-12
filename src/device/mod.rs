@@ -1,6 +1,7 @@
 use std::io;
 use clap;
 use color::*;
+use driver::*;
 
 pub mod apa102;
 pub mod generic;
@@ -8,18 +9,13 @@ pub mod hexws2811;
 pub mod lpd8806;
 
 
-#[derive(Clone)]
-pub enum FirstBit {
-    LSB,
-    MSB,
-}
-
 pub trait Device {
-    fn clock_phase(&self) -> u8;
-    fn clock_polarity(&self) -> u8;
-    fn first_bit(&self) -> FirstBit;
     fn color_correction(&self) -> Correction;
     fn write_frame(&self, &mut io::Write, &[Pixel]) -> io::Result<()>;
+
+    fn spidev_config(&self) -> Option<spidev::Config> {
+        None
+    }
 
     fn written_frame_size(&self, num_pixels: usize) -> usize {
         let mut buf = Vec::new();
