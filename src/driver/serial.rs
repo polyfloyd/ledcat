@@ -58,6 +58,6 @@ fn map_baudrate(b: u32) -> termios::BaudRate {
         b if b > 110 => termios::BaudRate::B110,
         b if b > 75 => termios::BaudRate::B75,
         b if b > 50 => termios::BaudRate::B50,
-            _ => termios::BaudRate::B0,
+        _ => termios::BaudRate::B0,
     }
 }

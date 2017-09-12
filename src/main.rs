@@ -114,7 +114,7 @@ fn main() {
             .long("serial-baudrate")
             .takes_value(true)
             .validator(regex_validator!(r"^[1-9]\d*$"))
-            .default_value("12000000")
+            .default_value("1152000")
             .help("If serial is used as driver, use this to set the baudrate"))
         .arg(clap::Arg::with_name("framerate")
             .short("f")
