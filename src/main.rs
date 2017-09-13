@@ -13,7 +13,7 @@ use std::fs;
 use std::io::Write;
 use std::io;
 use std::net;
-use std::ops::Deref;
+use std::ops::DerefMut;
 use std::path;
 use std::str::FromStr;
 use std::sync;
@@ -192,28 +192,27 @@ fn main() {
         return;
     };
 
-    let (output, dev) = if sub_name == "artnet" {
+    let mut output: Box<Output> = if sub_name == "artnet" {
         let sub_matches = sub_matches.unwrap();
-        let dev: Box<Device> = Box::new(device::generic::Generic {});
+        let dev = Box::new(device::generic::Generic {});
         let artnet_target: Box<artnet::Target> = if sub_matches.is_present("broadcast") {
             Box::new(artnet::Broadcast{})
         } else if let Some(list_path) = sub_matches.value_of("target-list") {
             Box::new(artnet::ListFile::new(list_path))
         } else {
             let addresses: Vec<_> = sub_matches.values_of("target").unwrap().map(|addr| {
-                net::SocketAddr::new(net::IpAddr::from_str(addr).unwrap(), artnet::PORT)
+                net::SocketAddr::new(addr.parse().unwrap(), artnet::PORT)
             }).collect();
             Box::new(addresses)
         };
-        let output: Box<io::Write> = match artnet::Unicast::to(artnet_target,
-                                                               dimensions.size() * 3) {
+        let output = match artnet::Unicast::to(artnet_target, dimensions.size() * 3) {
             Ok(out) => Box::new(out),
             Err(err) => {
                 eprintln!("{}", err);
                 return;
             }
         };
-        (output, dev)
+        Box::from((dev, output))
 
     } else {
         let dev = device_constructors[sub_name](sub_matches.unwrap());
@@ -246,7 +245,7 @@ fn main() {
                 return;
             }
         };
-        (output, dev)
+        Box::new((dev, output))
     };
 
     let transpose = matches.values_of("transpose")
@@ -266,7 +265,7 @@ fn main() {
             "srgb" => Some(Correction::srgb(255, 255, 255)),
             _ => None,
         })
-        .unwrap_or_else(|| dev.color_correction());
+        .unwrap_or_else(|| output.color_correction());
     let dim = (matches.value_of("dim")
             .unwrap()
             .parse::<f32>()
@@ -293,16 +292,11 @@ fn main() {
             f => f,
         })
         .collect();
-    let mut input =
-        select::Reader::from_files(files, dimensions.size() * 3, input_consume, input_eof).unwrap();
-
-    let mut output = io::BufWriter::with_capacity(dev.written_frame_size(dimensions.size()),
-                                                  output);
+    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_consume, input_eof).unwrap();
 
     if single_frame {
         let _ = pipe_frame(&mut input,
-                           &mut output,
-                           dev.deref(),
+                           output.deref_mut(),
                            dimensions.size(),
                            &transposition,
                            &color_correction,
@@ -311,8 +305,7 @@ fn main() {
         loop {
             let start = time::Instant::now();
             if let Err(_) = pipe_frame(&mut input,
-                                       &mut output,
-                                       dev.deref(),
+                                       output.deref_mut(),
                                        dimensions.size(),
                                        &transposition,
                                        &color_correction,
@@ -330,8 +323,7 @@ fn main() {
 }
 
 fn pipe_frame(mut input: &mut io::Read,
-              mut output: &mut io::Write,
-              dev: &Device,
+              dev: &mut Output,
               num_pixels: usize,
               transposition: &[usize],
               correction: &Correction,
@@ -340,8 +332,7 @@ fn pipe_frame(mut input: &mut io::Read,
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
     // transpositions.
-    let mut buffer = Vec::new();
-    buffer.resize(num_pixels, Pixel { r: 0, g: 0, b: 0 });
+    let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; num_pixels];
     for i in 0..num_pixels {
         let pix_in = Pixel::read_rgb24(&mut input)?;
         let pix_dimmed = {
@@ -355,8 +346,8 @@ fn pipe_frame(mut input: &mut io::Read,
         let pix_corrected = correction.correct(pix_dimmed);
         buffer[transposition[i]] = pix_corrected;
     }
-    dev.write_frame(&mut output, &buffer)?;
-    output.flush()
+    dev.output_frame(&buffer)?;
+    Ok(())
 }
 
 fn transposition_table(dimensions: &geometry::Dimensions,
