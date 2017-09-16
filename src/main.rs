@@ -2,6 +2,7 @@ extern crate byteorder;
 extern crate clap;
 #[macro_use]
 extern crate derive_error;
+extern crate gpio;
 extern crate libc;
 #[macro_use]
 extern crate nix;
@@ -156,7 +157,8 @@ fn main() {
                 .short("d")
                 .long("discover")
                 .conflicts_with_all(&["target", "target-list", "broadcast"])
-                .help("Discover artnet nodes")));
+                .help("Discover artnet nodes")))
+        .subcommand(hub75::command());
 
     let mut device_constructors = collections::HashMap::new();
     for device_init in device::devices() {
@@ -213,6 +215,16 @@ fn main() {
             }
         };
         Box::from((dev, output))
+
+    } else if sub_name == "hub75" {
+        let (w, h) = match dimensions {
+            geometry::Dimensions::One(_) => {
+                eprintln!("hub75 requires 2D geometry");
+                return;
+            },
+            geometry::Dimensions::Two(w, h) => (w, h),
+        };
+        Box::new(hub75::from_command(sub_matches.unwrap(), w, h).unwrap())
 
     } else {
         let dev = device_constructors[sub_name](sub_matches.unwrap());

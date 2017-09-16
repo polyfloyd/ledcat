@@ -7,6 +7,7 @@ use driver::*;
 pub mod apa102;
 pub mod generic;
 pub mod hexws2811;
+pub mod hub75;
 pub mod lpd8806;
 
 

@@ -1,7 +1,7 @@
 use std::io;
 
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Pixel {
     pub r: u8,
     pub g: u8,
