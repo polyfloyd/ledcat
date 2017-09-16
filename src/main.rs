@@ -23,7 +23,7 @@ use color::*;
 use device::*;
 use driver::*;
 use input::*;
-use input::geometry::Transposition;
+use input::geometry::*;
 
 #[macro_use]
 mod util;
@@ -82,7 +82,7 @@ fn main() {
             .takes_value(true)
             .min_values(1)
             .multiple(true)
-            .possible_values(&["reverse", "zigzag_x", "zigzag_y"])
+            .possible_values(&["reverse", "zigzag_x", "zigzag_y", "mirror_x", "mirror_y"])
             .help("Apply one or more transpositions to the output"))
         .arg(clap::Arg::with_name("color-correction")
             .short("c")
@@ -181,12 +181,12 @@ fn main() {
     }
 
     let dimensions = if let Some(npix) = matches.value_of("num-pixels") {
-        geometry::Dimensions::One(npix.parse::<usize>().unwrap())
+        Dimensions::One(npix.parse::<usize>().unwrap())
     } else if let Some(geom) = matches.value_of("geometry") {
         let parsed: Vec<usize> = geom.split('x')
             .map(|d| -> usize { d.parse::<usize>().unwrap() })
             .collect();
-        geometry::Dimensions::Two(parsed[0], parsed[1])
+        Dimensions::Two(parsed[0], parsed[1])
     } else {
         eprintln!("Please set the frame size through either --num-pixels or --geometry");
         return;
@@ -350,28 +350,37 @@ fn pipe_frame(mut input: &mut io::Read,
     Ok(())
 }
 
-fn transposition_table(dimensions: &geometry::Dimensions,
+fn transposition_table(dimensions: &Dimensions,
                        operations: Vec<&str>)
                        -> Result<Vec<usize>, String> {
-    let transpositions: Vec<Box<geometry::Transposition>> = try!(operations.into_iter()
-        .map(|name| -> Result<Box<geometry::Transposition>, String> {
-            match name {
-                "reverse" => Ok(Box::from(geometry::Reverse { length: dimensions.size() })),
-                "zigzag_x" | "zigzag_y" => {
-                    let (w, h) = match *dimensions {
-                        geometry::Dimensions::Two(x, y) => (x, y),
-                        _ => return Err("Zigzag requires 2D geometry to be specified".to_string()),
-                    };
-                    Ok(Box::from(geometry::Zigzag {
+    let transpositions: Vec<Box<Transposition>> = try!(operations.into_iter()
+        .map(|name| -> Result<Box<Transposition>, String> {
+            match (name, *dimensions) {
+                ("reverse", dim) => Ok(Box::from(Reverse { length: dim.size() })),
+                ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
+                    Ok(Box::from(Zigzag {
                         width: w,
                         height: h,
                         major_axis: match name.chars().last().unwrap() {
-                            'x' => geometry::Axis::X,
-                            _ => geometry::Axis::Y,
+                            'x' => Axis::X,
+                            'y' => Axis::Y,
+                            _ => unreachable!(),
                         },
                     }))
-                }
-                _ => Err(format!("Unknown transposition: {}", name)),
+                },
+                ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
+                    Ok(Box::from(Mirror {
+                        width: w,
+                        height: h,
+                        axis: match name.chars().last().unwrap() {
+                            'x' => Axis::X,
+                            'y' => Axis::Y,
+                            _ => unreachable!(),
+                        },
+                    }))
+                },
+                (name, Dimensions::One(_)) => Err(format!("{} requires 2D geometry to be specified", name)),
+                (name, _) => Err(format!("Unknown transposition: {}", name)),
             }
         })
         .collect());

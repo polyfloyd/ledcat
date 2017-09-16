@@ -32,3 +32,7 @@ Y-axis respectively.
 
 It is not possible to zigzag a 1D image, thus requiring the display size to be
 configured using `--geomety` instead of `--num-pixels`.
+
+## Mirror
+Using `--transpose mirror_x` or `--transpose mirror_y` will mirror the output
+image of the respective axis.
