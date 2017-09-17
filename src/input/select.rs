@@ -43,13 +43,12 @@ impl Reader {
                          consume: Consume,
                          when_eof: WhenEOF)
                          -> io::Result<Reader>
-        where P: AsRef<path::Path>
-    {
+        where P: AsRef<path::Path> {
         let files: io::Result<Vec<fs::File>> = filenames.into_iter().map(|filename| {
             let mut open_opts = fs::OpenOptions::new();
             open_opts.read(true);
 
-            let is_fifo = cfg!(unix) && try!(fs::metadata(&filename)).file_type().is_fifo();
+            let is_fifo = cfg!(unix) && fs::metadata(&filename)?.file_type().is_fifo();
             if is_fifo {
                 // A FIFO will block the call to open() until the other end has been opened. This
                 // means that when multiple FIFO's are used, they all have to be open at once
@@ -58,7 +57,7 @@ impl Reader {
                 open_opts.custom_flags(libc::O_NONBLOCK);
             }
 
-            let file = try!(open_opts.open(&filename));
+            let file = open_opts.open(&filename)?;
 
             if is_fifo {
                 unsafe {
@@ -77,7 +76,7 @@ impl Reader {
 
             Ok(file)
         }).collect();
-        Ok(Reader::from(try!(files), switch_after, consume, when_eof))
+        Ok(Reader::from(files?, switch_after, consume, when_eof))
     }
 
     pub fn from<R>(inputs: Vec<R>,
@@ -96,8 +95,7 @@ impl Reader {
                 let when_eof = when_eof.clone();
                 thread::spawn(move || {
                     loop {
-                        let mut buf = Vec::new();
-                        buf.resize(switch_after, 0);
+                        let mut buf = vec![0; switch_after];
                         if let Err(_) = input.read_exact(&mut buf) {
                             if let WhenEOF::Close = when_eof {
                                 return;
@@ -226,14 +224,15 @@ mod tests {
                   |ch, i| Box::from(ch.chain(iter::repeat(i as u8).take(len))))
             .collect();
 
-        let mut reader = Reader::from(vec![io::Cursor::new(testdata.clone())],
-                                      len,
-                                      Consume::Single,
-                                      WhenEOF::Close);
+        let mut reader = Reader::from(
+            vec![io::Cursor::new(testdata.clone())],
+            len,
+            Consume::Single,
+            WhenEOF::Close,
+        );
 
         for i in 0..num {
-            let mut rd_buf = Vec::new();
-            rd_buf.resize(len, 0);
+            let mut rd_buf = vec![0; len];
             reader.read_exact(&mut rd_buf).unwrap();
             assert_eq!(testdata[len * i..len * (i + 1)], rd_buf[..]);
         }
@@ -247,16 +246,15 @@ mod tests {
         let len = 100;
         let num = 16;
 
-        let mut reader = Reader::from((1..num + 1)
-                                          .map(|i| IterReader(iter::repeat(i).take(len)))
-                                          .collect(),
-                                      len,
-                                      Consume::Single,
-                                      WhenEOF::Close);
+        let mut reader = Reader::from(
+            (1..num + 1).map(|i| IterReader(iter::repeat(i).take(len))).collect(),
+            len,
+            Consume::Single,
+            WhenEOF::Close,
+        );
 
         for i in 1..num + 1 {
-            let mut rd_buf = Vec::new();
-            rd_buf.resize(len, 0);
+            let mut rd_buf = vec![0; len];
             reader.read_exact(&mut rd_buf).unwrap();
             let expected: Vec<u8> = iter::repeat(i).take(len).collect();
             assert_eq!(expected, rd_buf);
@@ -268,10 +266,12 @@ mod tests {
 
     #[test]
     fn read_eof() {
-        let mut reader = Reader::from(vec![IterReader(iter::empty()), IterReader(iter::empty())],
-                                      1,
-                                      Consume::Single,
-                                      WhenEOF::Close);
+        let mut reader = Reader::from(
+            vec![IterReader(iter::empty()), IterReader(iter::empty())],
+            1,
+            Consume::Single,
+            WhenEOF::Close,
+        );
         timeout!(time::Duration::new(1, 0), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
@@ -280,10 +280,12 @@ mod tests {
     #[test]
     #[should_panic]
     fn read_eof_retry() {
-        let mut reader = Reader::from(vec![IterReader(iter::empty())],
-                                      1,
-                                      Consume::Single,
-                                      WhenEOF::Retry);
+        let mut reader = Reader::from(
+            vec![IterReader(iter::empty())],
+            1,
+            Consume::Single,
+            WhenEOF::Retry,
+        );
         timeout!(time::Duration::new(0, 1_000_000), {
             io::copy(&mut reader, &mut io::sink()).unwrap();
         });
@@ -296,14 +298,15 @@ mod tests {
 
         let (tx1, rx1) = mpsc::channel();
         let (tx2, rx2) = mpsc::channel();
-        let mut reader = Reader::from(vec![IterReader(rx1.into_iter()),
-                                           IterReader(rx2.into_iter())],
-                                      len,
-                                      Consume::Single,
-                                      WhenEOF::Close);
+        let mut reader = Reader::from(
+            vec![IterReader(rx1.into_iter()),
+                 IterReader(rx2.into_iter())],
+            len,
+            Consume::Single,
+            WhenEOF::Close,
+        );
 
-        let mut rd_buf = Vec::new();
-        rd_buf.resize(len, 0);
+        let mut rd_buf = vec![0; len];
 
         // Send a partial frame over channel 1...
         for v in iter::repeat(pat1).take(len - 1) {
@@ -350,16 +353,16 @@ mod tests {
             assert_eq!(0, libc::mkfifo(f2.as_ptr(), 0o666));
         }
 
-        let mut reader = Reader::from_files(vec![&fifo1_path, &fifo2_path],
-                                            len,
-                                            Consume::Single,
-                                            WhenEOF::Close)
-            .unwrap();
+        let mut reader = Reader::from_files(
+            vec![&fifo1_path, &fifo2_path],
+            len,
+            Consume::Single,
+            WhenEOF::Close,
+        ).unwrap();
         let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
         let mut fifo2 = fs::OpenOptions::new().write(true).open(&fifo2_path).unwrap();
 
-        let mut rd_buf = Vec::new();
-        rd_buf.resize(len, 0);
+        let mut rd_buf = vec![0; len];
 
         // Send a partial frame over fifo 1...
         copy_iter(&mut fifo1, iter::repeat(pat1).take(len - 1));
