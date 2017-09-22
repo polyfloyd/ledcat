@@ -53,11 +53,15 @@ impl Worker {
     }
 
     fn refresh_display(&mut self, min_val: u8) -> io::Result<()> {
-        for y in 0..1 << self.level_select.len() {
+        let num_level_select = self.level_select.len();
+        let scan_height = 1 << self.level_select.len();
+        let scan_interleaved = (0..scan_height)
+            .map(|i| ((i << 1) | (i >> (num_level_select - 1))) & (scan_height - 1));
+        for y in scan_interleaved {
             // Clock in data for one row (Rn, Gn, Bn for data)
             for x in 0..self.width {
                 for (line, rgb) in self.rgb.iter_mut().enumerate() {
-                    let pix = &self.cur_frame[(y + line * 16) * self.width + x];
+                    let pix = &self.cur_frame[(y + line * scan_height) * self.width + x];
                     rgb[0].set_value(pix.r >= min_val)?;
                     rgb[1].set_value(pix.g >= min_val)?;
                     rgb[2].set_value(pix.b >= min_val)?;
