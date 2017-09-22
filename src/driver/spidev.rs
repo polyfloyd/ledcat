@@ -10,6 +10,7 @@ ioctl!(write_ptr spi_ioc_wr_mode with b'k', 1; u8);
 ioctl!(write_ptr spi_ioc_wr_lsb_first with b'k', 2; u8);
 ioctl!(write_ptr spi_ioc_wr_max_speed_hz with b'k', 4; u32);
 
+#[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub enum FirstBit {
     LSB,
