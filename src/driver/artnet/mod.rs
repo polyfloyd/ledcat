@@ -61,11 +61,14 @@ pub fn from_command(args: &clap::ArgMatches, maybe_dimensions: Option<geometry::
         Box::new(Broadcast{})
     } else if let Some(list_path) = args.value_of("target-list") {
         Box::new(ListFile::new(list_path))
-    } else {
+    } else if args.is_present("target") {
         let addresses: Vec<_> = args.values_of("target").unwrap().map(|addr| {
             net::SocketAddr::new(addr.parse().unwrap(), PORT)
         }).collect();
         Box::new(addresses)
+    } else {
+        eprintln!("Missing artnet target. Please set --target IP or --broadcast");
+        return Ok(None);
     };
 
     let dimensions = match maybe_dimensions {
