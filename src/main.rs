@@ -10,6 +10,7 @@ extern crate regex;
 
 use std::borrow::Borrow;
 use std::collections;
+use std::env;
 use std::fs;
 use std::io;
 use std::ops::DerefMut;
@@ -31,6 +32,10 @@ mod input;
 
 
 fn main() {
+    let geom_default = match env::var("LEDCAT_GEOMETRY") {
+        Ok(s) => s,
+        Err(_) => "".to_string(),
+    };
     let mut cli = clap::App::new("ledcat")
         .version("0.0.1")
         .author("polyfloyd <floyd@polyfloyd.net>")
@@ -59,19 +64,16 @@ fn main() {
             .requires("framerate")
             .help("Instead of synchronously reading from one input at a time, consume all data \
                    concurrently, possibly dropping frames."))
-        .arg(clap::Arg::with_name("num-pixels")
-            .short("n")
-            .long("num-pixels")
-            .global(true)
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .help("The number of pixels in the string"))
         .arg(clap::Arg::with_name("geometry")
             .short("g")
             .long("geometry")
+            .alias("num-pixels")
             .takes_value(true)
-            .conflicts_with("num-pixels")
-            .validator(regex_validator!(r"^[1-9]\d*x[1-9]\d*$"))
+            .default_value(&geom_default)
+            .validator(|val| match val.parse::<Dimensions>() {
+                Ok(_) => Ok(()),
+                Err(err) => Err(format!("{}", err)),
+            })
             .help("Specify the size of a two dimensional display"))
         .arg(clap::Arg::with_name("transpose")
             .short("t")
@@ -142,16 +144,10 @@ fn main() {
         return;
     }
 
-    let maybe_dimensions = if let Some(npix) = matches.value_of("num-pixels") {
-        Some(Dimensions::One(npix.parse::<usize>().unwrap()))
-    } else if let Some(geom) = matches.value_of("geometry") {
-        let parsed: Vec<usize> = geom.split('x')
-            .map(|d| -> usize { d.parse::<usize>().unwrap() })
-            .collect();
-        Some(Dimensions::Two(parsed[0], parsed[1]))
-    } else {
-        None
-    };
+    // Don't require the display geomtry to be set just yet, a non-outputting subcommand may not
+    // need it anyway.
+    let maybe_dimensions = matches.value_of("geometry")
+        .and_then(|v| v.parse().ok());
 
     let mut output: Box<Output> = if sub_name == "artnet" {
         match artnet::from_command(sub_matches.unwrap(), maybe_dimensions).unwrap() {

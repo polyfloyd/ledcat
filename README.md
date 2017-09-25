@@ -14,11 +14,11 @@ Simply create a program that outputs 3 bytes of RGB for each pixel in your strip
 ## Usage Examples
 ```sh
 # Make a strip of 30 apa102 leds all red.
-perl -e 'print "\xff\x00\x00" x 30' | ledcat --num-pixels 30 apa102 > /dev/spidev0.0
+perl -e 'print "\xff\x00\x00" x 30' | ledcat --geometry 30 apa102 > /dev/spidev0.0
 ```
 ```sh
 # Receive frames over UDP.
-nc -ul 1337 | ledcat --num-pixels 30 apa102 > /dev/spidev0.0
+nc -ul 1337 | ledcat --geometry 30 apa102 > /dev/spidev0.0
 ```
 ```sh
 # Load an image named "image.png", resize it to fit the size of the display and
@@ -40,7 +40,7 @@ mkfifo /tmp/ambient
 mkfifo /tmp/messages
 cat /dev/urandom > /tmp/ambient &
 ./my_messages > /tmp/messages &
-ledcat --input /tmp/ambient /tmp/messages --linger --num-pixels 30 apa102 > /dev/spidev0.0
+ledcat --input /tmp/ambient /tmp/messages --linger --geometry 30 apa102 > /dev/spidev0.0
 ```
 
 ### Supported Drivers:
