@@ -24,7 +24,6 @@ impl str::FromStr for Dimensions {
         if let Some(cap) = d1.captures(s) {
             Ok(Dimensions::One(cap[0].parse().unwrap()))
         } else if let Some(cap) = d2.captures(s) {
-            eprintln!("{}, {}", &cap[1], &cap[2]);
             Ok(Dimensions::Two(cap[1].parse().unwrap(), cap[2].parse().unwrap()))
         } else {
             Err(format!("can not parse \"{}\" into Dimensions", s))
