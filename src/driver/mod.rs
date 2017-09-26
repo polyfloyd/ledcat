@@ -8,12 +8,12 @@ pub mod serial;
 pub mod spidev;
 
 
-const DRIVER_DETECTORS: &[(&str, fn(&path::PathBuf) -> bool)] = &[
+const DRIVER_DETECTORS: &[(&str, fn(&path::Path) -> bool)] = &[
     ("serial", serial::is_serial),
     ("spidev", spidev::is_spidev),
 ];
 
-pub fn detect(file: &path::PathBuf) -> Option<String> {
+pub fn detect<P: AsRef<path::Path>>(file: P) -> Option<String> {
     let real_file = match read_link_recursive(file) {
         Ok(p) => p,
         Err(_) => return None,
@@ -26,12 +26,12 @@ pub fn detect(file: &path::PathBuf) -> Option<String> {
     None
 }
 
-fn read_link_recursive(path: &path::PathBuf) -> io::Result<path::PathBuf> {
+fn read_link_recursive<P: AsRef<path::Path>>(path: P) -> io::Result<path::PathBuf> {
     match fs::read_link(&path) {
         Ok(path) => read_link_recursive(&path),
         Err(err) => {
             if err.raw_os_error() == Some(22) {
-                Ok(path.to_path_buf())
+                Ok(path.as_ref().to_path_buf())
             } else {
                 Err(err)
             }

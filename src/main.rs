@@ -269,13 +269,14 @@ fn main() {
     }
 }
 
-fn pipe_frame(mut input: &mut io::Read,
-              dev: &mut Output,
-              num_pixels: usize,
-              transposition: &[usize],
-              correction: &Correction,
-              dim: u8)
-              -> io::Result<()> {
+fn pipe_frame<R>(mut input: R,
+                 dev: &mut Output,
+                 num_pixels: usize,
+                 transposition: &[usize],
+                 correction: &Correction,
+                 dim: u8)
+                 -> io::Result<()>
+                 where R: io::Read {
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
     // transpositions.

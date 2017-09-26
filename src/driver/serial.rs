@@ -5,7 +5,7 @@ use nix::sys::termios;
 use regex;
 use driver;
 
-pub fn open(path: &path::PathBuf, baudrate: u32) -> Result<fs::File, driver::Error> {
+pub fn open<P: AsRef<path::Path>>(path: P, baudrate: u32) -> Result<fs::File, driver::Error> {
     let tty = fs::OpenOptions::new()
         .write(true)
         .read(true)
@@ -20,7 +20,7 @@ pub fn open(path: &path::PathBuf, baudrate: u32) -> Result<fs::File, driver::Err
     Ok(tty)
 }
 
-pub fn is_serial(path: &path::PathBuf) -> bool {
+pub fn is_serial(path: &path::Path) -> bool {
     let devs = regex::RegexSet::new(&[r"^/dev/tty"])
         .unwrap();
     devs.is_match(path.to_str().unwrap())

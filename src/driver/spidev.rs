@@ -25,7 +25,7 @@ pub struct Config {
     pub speed_hz: u32,
 }
 
-pub fn open(path: &path::PathBuf, dev: &Device) -> Result<fs::File, driver::Error> {
+pub fn open(path: &path::Path, dev: &Device) -> Result<fs::File, driver::Error> {
     let spidev = fs::OpenOptions::new().write(true).open(path)?;
     let fd = spidev.as_raw_fd();
 
@@ -45,7 +45,7 @@ pub fn open(path: &path::PathBuf, dev: &Device) -> Result<fs::File, driver::Erro
     Ok(spidev)
 }
 
-pub fn is_spidev(path: &path::PathBuf) -> bool {
+pub fn is_spidev(path: &path::Path) -> bool {
     let devs = regex::RegexSet::new(&[r"^/dev/spidev\d+\.\d+$",
                                       r"^/sys/devices/.+/spi\d\.\d$",
                                       r"^/sys/class/devices/.+/spi\d\.\d$"])

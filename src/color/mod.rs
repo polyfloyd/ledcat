@@ -9,7 +9,7 @@ pub struct Pixel {
 }
 
 impl Pixel {
-    pub fn read_rgb24(reader: &mut io::Read) -> io::Result<Pixel> {
+    pub fn read_rgb24<R: io::Read>(mut reader: R) -> io::Result<Pixel> {
         let mut pixbuf: [u8; 3] = [0; 3];
         reader.read_exact(&mut pixbuf)?;
         Ok(Pixel {
