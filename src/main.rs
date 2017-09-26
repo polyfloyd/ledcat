@@ -59,11 +59,6 @@ fn main() {
             .short("l")
             .long("linger")
             .help("Keep trying to read from the input(s) after EOF is reached"))
-        .arg(clap::Arg::with_name("async")
-            .long("async")
-            .requires("framerate")
-            .help("Instead of synchronously reading from one input at a time, consume all data \
-                   concurrently, possibly dropping frames."))
         .arg(clap::Arg::with_name("geometry")
             .short("g")
             .long("geometry")
@@ -235,11 +230,6 @@ fn main() {
     let single_frame = matches.is_present("single-frame");
 
     let inputs = matches.values_of("input").unwrap();
-    let input_consume = if matches.is_present("async") {
-        select::Consume::All(frame_interval.unwrap())
-    } else {
-        select::Consume::Single
-    };
     let input_eof = if matches.is_present("linger") {
         select::WhenEOF::Retry
     } else {
@@ -250,7 +240,7 @@ fn main() {
             f => f,
         })
         .collect();
-    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_consume, input_eof).unwrap();
+    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_eof).unwrap();
 
     loop {
         let start = time::Instant::now();

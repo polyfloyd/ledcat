@@ -1,54 +1,43 @@
 use std::fs;
 use std::io;
-use std::os::unix::fs::FileTypeExt;
-use std::os::unix::fs::OpenOptionsExt;
+use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::os::unix::io::AsRawFd;
 use std::path;
-use std::sync::mpsc;
-use std::thread;
-use std::time;
 use libc;
+use nix::poll;
 
 
-/// Tells readers how to handle excessive data if more is produced from the inputs than is being
-/// read.
-#[derive(Clone)]
-pub enum Consume {
-    /// Only pull data from the selected input. All other streams are blocked and their data is
-    /// kept until needed.
-    Single,
-    /// Keeps pulling from all streams regardless of whether the data is actually being presented
-    /// to the reader. Be sure to idle between frames in the producer to make sure no frames are
-    /// dropped.
-    All(time::Duration),
-}
-
-#[derive(Clone)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum WhenEOF {
     Close,
     Retry,
 }
 
+pub trait ReadFd: io::Read + AsRawFd { }
+
+impl<T> ReadFd for T
+    where T: io::Read + AsRawFd { }
 
 pub struct Reader {
-    consume: Consume,
     when_eof: WhenEOF,
-    receivers: Vec<mpsc::Receiver<Vec<u8>>>,
-    current: Option<io::Cursor<Vec<u8>>>,
+
+    inputs: Vec<Box<ReadFd + Send>>,
+    // The number of bytes after which another input is selected.
+    switch_after: usize,
+    // A buffer for each input to be used for partially received content.
+    buffers: Vec<Vec<u8>>,
+    // The current buffer selected for output.
+    current: io::Cursor<Vec<u8>>,
 }
 
 impl Reader {
-    pub fn from_files<P>(filenames: Vec<P>,
-                         switch_after: usize,
-                         consume: Consume,
-                         when_eof: WhenEOF)
-                         -> io::Result<Reader>
+    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, when_eof: WhenEOF) -> io::Result<Reader>
         where P: AsRef<path::Path> {
-        let files: io::Result<Vec<fs::File>> = filenames.into_iter().map(|filename| {
+        let files: io::Result<Vec<Box<ReadFd + Send>>> = filenames.into_iter().map(|filename| {
             let mut open_opts = fs::OpenOptions::new();
             open_opts.read(true);
 
-            let is_fifo = cfg!(unix) && fs::metadata(&filename)?.file_type().is_fifo();
+            let is_fifo = fs::metadata(&filename)?.file_type().is_fifo();
             if is_fifo {
                 // A FIFO will block the call to open() until the other end has been opened. This
                 // means that when multiple FIFO's are used, they all have to be open at once
@@ -74,111 +63,94 @@ impl Reader {
                 }
             }
 
-            Ok(file)
+            Ok(Box::<ReadFd + Send>::from(Box::new(file)))
         }).collect();
-        Ok(Reader::from(files?, switch_after, consume, when_eof))
+        Ok(Reader::from(files?, switch_after, when_eof))
     }
 
-    pub fn from<R>(inputs: Vec<R>,
-                   switch_after: usize,
-                   consume: Consume,
-                   when_eof: WhenEOF)
-                   -> Reader
-        where R: io::Read + Send + 'static
-    {
+    pub fn from(inputs: Vec<Box<ReadFd + Send>>, switch_after: usize, when_eof: WhenEOF) -> Reader {
         assert_ne!(inputs.len(), 0);
-
-        let receivers = inputs.into_iter()
-            .map(|mut input| {
-                let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1);
-                let consume = consume.clone();
-                let when_eof = when_eof.clone();
-                thread::spawn(move || {
-                    loop {
-                        let mut buf = vec![0; switch_after];
-                        if let Err(_) = input.read_exact(&mut buf) {
-                            if let WhenEOF::Close = when_eof {
-                                return;
-                            }
-                            thread::sleep(time::Duration::new(0, 1_000_000)); // TODO
-                            continue;
-                        }
-                        match consume {
-                            Consume::Single => {
-                                if let Err(_) = tx.send(buf) {
-                                    break;
-                                }
-                            }
-                            Consume::All(interval) => {
-                                if let Err(mpsc::TrySendError::Disconnected(_)) = tx.try_send(buf) {
-                                    break;
-                                }
-                                thread::sleep(interval);
-                            }
-                        };
-                    }
-                });
-                rx
-            })
+        let buffers = (0..inputs.len())
+            .map(|_| Vec::with_capacity(switch_after))
             .collect();
-
         Reader {
-            consume: consume,
-            when_eof: when_eof,
-            receivers: receivers,
-            current: None,
+            switch_after,
+            buffers,
+            when_eof,
+            inputs,
+            current: io::Cursor::new(Vec::new()),
         }
     }
 }
 
 impl io::Read for Reader {
     fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-        loop {
-            if self.current.is_none() {
-                let recv = self.receivers.iter().fold(Err(false), |prev, rx| {
-                    let prev_active = match prev {
-                        Ok(_) => true,
-                        Err(active) => active,
-                    };
-                    let recv = match self.consume {
-                        Consume::Single => prev.or_else(|_| rx.try_recv()),
-                        Consume::All(_) => prev.or(rx.try_recv()),
-                    };
-                    recv.map_err(|e| match e {
-                        mpsc::TryRecvError::Disconnected => prev_active,
-                        mpsc::TryRecvError::Empty => true,
+        if self.current.position() == self.current.get_ref().len() as u64 {
+            // The end of the current buffer has been reached, fetch more data.
+            loop {
+                // Perform a poll to see if there are any inputs ready for reading.
+                let mut poll_fds: Vec<_> = self.inputs.iter()
+                    .map(|inp| {
+                        poll::PollFd::new(inp.as_raw_fd(), poll::POLLIN)
                     })
-                });
-                if let Err(false) = recv {
-                    if let WhenEOF::Close = self.when_eof {
-                        return Ok(0);
+                    .collect();
+                io_err!(poll::poll(&mut poll_fds, 1_000))?;
+
+                let mut num_open = poll_fds.len();
+                let mut ready_index = None;
+                for (i, p) in poll_fds.iter().enumerate() {
+                    let rev = p.revents().unwrap();
+                    if rev.contains(poll::POLLIN) {
+                        let buf = &mut self.buffers[i];
+                        let buf_used = buf.len();
+                        assert_ne!(buf_used, self.switch_after);
+                        // Resize the buffer so there is just enough space for the remainder of the
+                        // frame.
+                        buf.resize(self.switch_after, 0);
+
+                        let nread = self.inputs[i].read(&mut buf[buf_used..])?;
+                        buf.resize(buf_used + nread, 0);
+                        assert!(buf.len() <= self.switch_after);
+                        if nread == 0 { // EOF
+                            num_open -= 1;
+                        } else if buf.len() == self.switch_after {
+                            ready_index = Some(i);
+                            break;
+                        }
+                    } else if rev.intersects(poll::POLLHUP|poll::POLLNVAL|poll::POLLERR) {
+                        num_open -= 1;
                     }
                 }
-                self.current = recv.ok().map(io::Cursor::new);
-            }
 
-            if self.current.is_some() {
-                let mut cur = self.current.take().unwrap();
-                let nread = cur.read(&mut buf).unwrap();
-                self.current = if nread == 0 { None } else { Some(cur) };
-                if nread > 0 {
-                    return Ok(nread);
+                if num_open == 0 && self.when_eof == WhenEOF::Close {
+                    return Ok(0);
+                }
+
+                if let Some(i) = ready_index {
+                    let tail = self.buffers[i].split_off(self.switch_after);
+                    self.buffers.push(tail); // Later moved to index i by swap_remove.
+                    let buf = self.buffers.swap_remove(i);
+                    self.current = io::Cursor::new(buf);
+                    break;
                 }
             }
-
-            thread::sleep(time::Duration::new(0, 1_000_000)); // TODO
         }
+        self.current.read(buf)
     }
 }
 
 
 #[cfg(test)]
 mod tests {
+    extern crate rand;
     extern crate tempdir;
     use std::*;
-    use std::io::Read;
+    use std::io::{Seek, Read, Write};
+    use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
+    use nix::sys::memfd::*;
     use super::*;
+    use self::rand::Rng;
 
     macro_rules! timeout {
         ($timeout:expr, $block:block) => {
@@ -193,20 +165,19 @@ mod tests {
         }
     }
 
-    struct IterReader<I: iter::Iterator<Item = u8>>(I);
-
-    impl<I> io::Read for IterReader<I>
-        where I: iter::Iterator<Item = u8>
-    {
-        fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
-            for i in 0..buf.len() {
-                match self.0.next() {
-                    Some(b) => buf[i] = b,
-                    None => return Ok(i),
-                };
-            }
-            Ok(buf.len())
+    fn new_iter_reader<I>(iter: I) -> Box<fs::File>
+        where I: iter::Iterator<Item = u8> {
+        let name = rand::thread_rng().gen_ascii_chars()
+            .take(32)
+            .collect::<String>();
+        let cname = ffi::CString::new(name).unwrap();
+        let fd = memfd_create(&cname, MemFdCreateFlag::empty()).unwrap();
+        let mut f = unsafe { fs::File::from_raw_fd(fd) };
+        for b in iter {
+            f.write_all(&[b]).unwrap();
         }
+        f.seek(io::SeekFrom::Start(0)).unwrap();
+        Box::new(f)
     }
 
     fn copy_iter<I: iter::Iterator<Item = u8>>(wr: &mut io::Write, it: I) {
@@ -225,9 +196,8 @@ mod tests {
             .collect();
 
         let mut reader = Reader::from(
-            vec![io::Cursor::new(testdata.clone())],
+            vec![new_iter_reader(testdata.clone().into_iter())],
             len,
-            Consume::Single,
             WhenEOF::Close,
         );
 
@@ -247,9 +217,8 @@ mod tests {
         let num = 16;
 
         let mut reader = Reader::from(
-            (1..num + 1).map(|i| IterReader(iter::repeat(i).take(len))).collect(),
+            (1..num + 1).map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<ReadFd + Send>).collect(),
             len,
-            Consume::Single,
             WhenEOF::Close,
         );
 
@@ -267,9 +236,8 @@ mod tests {
     #[test]
     fn read_eof() {
         let mut reader = Reader::from(
-            vec![IterReader(iter::empty()), IterReader(iter::empty())],
+            vec![new_iter_reader(iter::empty()), new_iter_reader(iter::empty())],
             1,
-            Consume::Single,
             WhenEOF::Close,
         );
         timeout!(time::Duration::new(1, 0), {
@@ -281,57 +249,12 @@ mod tests {
     #[should_panic]
     fn read_eof_retry() {
         let mut reader = Reader::from(
-            vec![IterReader(iter::empty())],
+            vec![new_iter_reader(iter::empty())],
             1,
-            Consume::Single,
             WhenEOF::Retry,
         );
-        timeout!(time::Duration::new(0, 1_000_000), {
+        timeout!(time::Duration::new(0, 100_000_000), {
             io::copy(&mut reader, &mut io::sink()).unwrap();
-        });
-    }
-
-    #[test]
-    fn read_switching() {
-        let len = 100;
-        let (pat1, pat2) = (12, 42);
-
-        let (tx1, rx1) = mpsc::channel();
-        let (tx2, rx2) = mpsc::channel();
-        let mut reader = Reader::from(
-            vec![IterReader(rx1.into_iter()),
-                 IterReader(rx2.into_iter())],
-            len,
-            Consume::Single,
-            WhenEOF::Close,
-        );
-
-        let mut rd_buf = vec![0; len];
-
-        // Send a partial frame over channel 1...
-        for v in iter::repeat(pat1).take(len - 1) {
-            tx1.send(v).unwrap();
-        }
-
-        // Send and receive a full frame over channel 2.
-        let testdata: Vec<u8> = iter::repeat(pat2).take(len).collect();
-        for v in testdata.clone().into_iter() {
-            tx2.send(v).unwrap();
-        }
-        reader.read_exact(&mut rd_buf).unwrap();
-        assert_eq!(testdata, rd_buf);
-        rd_buf.resize(len, 0);
-
-        // ...and complete that first frame over channel 1.
-        tx1.send(pat1).unwrap();
-        reader.read_exact(&mut rd_buf).unwrap();
-        let expected: Vec<u8> = iter::repeat(pat1).take(len).collect();
-        assert_eq!(expected, rd_buf);
-
-        drop(tx1);
-        drop(tx2);
-        timeout!(time::Duration::new(1, 0), {
-            assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
     }
 
@@ -356,7 +279,6 @@ mod tests {
         let mut reader = Reader::from_files(
             vec![&fifo1_path, &fifo2_path],
             len,
-            Consume::Single,
             WhenEOF::Close,
         ).unwrap();
         let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
