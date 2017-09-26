@@ -140,7 +140,7 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
             .help("The GPIO-pins connected to the blue data lines. Typically labeled as B1 and B2"))
         .arg(clap::Arg::with_name("pwm")
             .long("pwm")
-            .default_value("1")
+            .default_value("3")
             .takes_value(true)
             .validator(regex_validator!(r"^[1-9]\d*$"))
             .help("The number of grayscale refreshes per frame that should be performed"))
