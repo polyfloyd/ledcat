@@ -3,7 +3,8 @@ HUB75
 
 ![Nyan Cat on a 64x32 LED-panel](img/hub75-demo.jpg)
 
-Ledcat supports an interface loosely dubbed "HUB75".
+Ledcat supports an interface loosely dubbed "HUB75", an interface used in cheap
+[LED-pannels such as these](https://www.aliexpress.com/store/product/Indoor-P5-Two-Modules-In-One-1-16-Scan-SMD3528-3in1-RGB-Full-color-LED-display/314096_1610954433.html).
 
 ## Setup
 To drive a single hub75 display:
@@ -34,10 +35,10 @@ You can optionally use `--pwm NUM` to control the number of PWM cycles per
 screen refresh. A higher value will increase the perceived color depth a the
 cost of refresh speed.
 
-### Multiple Displays
+## Multiple Displays
 There are two approaches to driving multiple display segments:
 
-#### Serial
+### In Series
 Of the two methods described in this document, this is the simplest as it is
 synonymous to simply extending the rows further out. The main drawback of this
 method is that it takes longer to complete a single refresh cycle.
@@ -52,7 +53,7 @@ __Note:__ While it is perfectly possible to physically place the displays on
 top of each other, ledcat currently lacks the transposition to correct the
 input to this configuration.
 
-#### Parallel
+### In Parallel
 Displays can also be extended by connecting them in a parallel fashion:
 1. Connect the `R`, `G` and `B` pins to the GPIO-pins of the computer and
    append the pin numbers to the `--red`, `--green` and `--blue` flags.

@@ -52,4 +52,4 @@ ledcat --input /tmp/ambient /tmp/messages --linger --geometry 30 apa102 > /dev/s
 * apa102
 * [HexWS2811](https://github.com/brainsmoke/hex2811-penta)
 * lpd8806
-* [hub75](https://www.aliexpress.com/store/product/Indoor-P5-Two-Modules-In-One-1-16-Scan-SMD3528-3in1-RGB-Full-color-LED-display/314096_1610954433.html) (gpio)
+* [hub75](doc/hub75.md)
