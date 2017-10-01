@@ -84,7 +84,7 @@ impl Reader {
 }
 
 impl io::Read for Reader {
-    fn read(&mut self, mut buf: &mut [u8]) -> io::Result<usize> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.current.position() == self.current.get_ref().len() as u64 {
             // The end of the current buffer has been reached, fetch more data.
             loop {

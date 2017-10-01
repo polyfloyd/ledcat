@@ -13,7 +13,7 @@ pub mod lpd8806;
 
 /// An output represents the device that is used as output.
 ///
-/// It is also possible to compose an output from a Device and an io::Write to allow reuse of
+/// It is also possible to compose an output from a Device and an `io::Write` to allow reuse of
 /// driver code.
 pub trait Output {
     fn color_correction(&self) -> Correction;

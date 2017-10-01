@@ -153,7 +153,7 @@ pub fn from_command(args: &clap::ArgMatches, width: usize, height: usize) -> io:
         args.value_of(name).unwrap()
             .split(',')
             .map(|s| s.parse().unwrap())
-            .map(|num| SysFsGpioOutput::new(num))
+            .map(SysFsGpioOutput::new)
             .collect()
     };
     let pin = |name: &str| -> io::Result<SysFsGpioOutput> {

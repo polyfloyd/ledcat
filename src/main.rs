@@ -1,3 +1,7 @@
+#![cfg_attr(feature="clippy", feature(plugin))]
+#![cfg_attr(feature="clippy", plugin(clippy))]
+#![cfg_attr(feature="clippy", allow(type_complexity))]
+
 extern crate byteorder;
 extern crate clap;
 #[macro_use]
@@ -169,7 +173,7 @@ fn main() {
 
         let driver_name = matches.value_of("driver")
             .map(|s: &str| s.to_string())
-            .or(driver::detect(&output_file));
+            .or_else(|| driver::detect(&output_file));
         let driver_name = match driver_name {
             Some(n) => n,
             None => {
@@ -203,7 +207,7 @@ fn main() {
 
     let transpose = matches.values_of("transpose")
         .map(|v| v.collect())
-        .unwrap_or(vec![]);
+        .unwrap_or_else(Vec::new);
     let transposition = match transposition_table(&dimensions, transpose) {
         Ok(t) => t,
         Err(err) => {
@@ -211,6 +215,7 @@ fn main() {
             return;
         }
     };
+    assert_eq!(dimensions.size(), transposition.len());
 
     let color_correction = matches.value_of("color-correction")
         .and_then(|name| match name {
@@ -244,7 +249,7 @@ fn main() {
 
     loop {
         let start = time::Instant::now();
-        if let Err(_) = pipe_frame(&mut input, output.deref_mut(), dimensions.size(), &transposition, &color_correction, dim) {
+        if pipe_frame(&mut input, output.deref_mut(), &transposition, &color_correction, dim).is_err() {
             break;
         }
         if single_frame {
@@ -261,7 +266,6 @@ fn main() {
 
 fn pipe_frame<R>(mut input: R,
                  dev: &mut Output,
-                 num_pixels: usize,
                  transposition: &[usize],
                  correction: &Correction,
                  dim: u8)
@@ -270,19 +274,19 @@ fn pipe_frame<R>(mut input: R,
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
     // transpositions.
-    let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; num_pixels];
-    for i in 0..num_pixels {
+    let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; transposition.len()];
+    for transpose_mapped in transposition {
         let pix_in = Pixel::read_rgb24(&mut input)?;
         let pix_dimmed = {
-            let dim16 = dim as u16;
+            let dim16 = u16::from(dim);
             Pixel {
-                r: ((pix_in.r as u16 * dim16) / 0xff) as u8,
-                g: ((pix_in.g as u16 * dim16) / 0xff) as u8,
-                b: ((pix_in.b as u16 * dim16) / 0xff) as u8,
+                r: ((u16::from(pix_in.r) * dim16) / 0xff) as u8,
+                g: ((u16::from(pix_in.g) * dim16) / 0xff) as u8,
+                b: ((u16::from(pix_in.b) * dim16) / 0xff) as u8,
             }
         };
         let pix_corrected = correction.correct(pix_dimmed);
-        buffer[transposition[i]] = pix_corrected;
+        buffer[*transpose_mapped] = pix_corrected;
     }
     dev.output_frame(&buffer)?;
     Ok(())

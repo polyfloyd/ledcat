@@ -9,13 +9,13 @@ use std::time;
 
 
 pub trait Target {
-    fn addresses<'a>(&'a self) -> Cow<'a, [net::SocketAddr]>;
+    fn addresses(&self) -> Cow<[net::SocketAddr]>;
 }
 
 
 impl Target for Vec<net::SocketAddr> {
-    fn addresses<'a>(&'a self) -> Cow<'a, [net::SocketAddr]> {
-        Cow::Borrowed(&self)
+    fn addresses(&self) -> Cow<[net::SocketAddr]> {
+        Cow::Borrowed(self)
     }
 }
 
@@ -23,7 +23,7 @@ impl Target for Vec<net::SocketAddr> {
 pub struct Broadcast {}
 
 impl Target for Broadcast {
-    fn addresses<'a>(&'a self) -> Cow<'a, [net::SocketAddr]> {
+    fn addresses(&self) -> Cow<[net::SocketAddr]> {
         let ip = net::Ipv4Addr::new(255, 255, 255, 255);
         let addrs = vec![net::SocketAddrV4::new(ip, super::PORT).into()];
         Cow::Owned(addrs)
@@ -91,7 +91,7 @@ impl ListFile {
 }
 
 impl Target for ListFile {
-    fn addresses<'a>(&'a self) -> Cow<'a, [net::SocketAddr]> {
+    fn addresses(&self) -> Cow<[net::SocketAddr]> {
         Cow::Owned(self.cache.read().unwrap().clone())
     }
 }

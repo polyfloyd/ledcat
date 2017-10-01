@@ -9,6 +9,7 @@ license = "GPL-3.0"
 [dependencies]
 byteorder = "~1.1.0"
 clap = "~2.26.0"
+clippy = { version = "*", optional = true }
 derive-error = "^0.0.3"
 gpio = { git = "https://github.com/polyfloyd/gpio-rs.git", rev = "more-speed" }
 libc = "^0.2.29"

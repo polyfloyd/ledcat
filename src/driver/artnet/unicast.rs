@@ -113,7 +113,7 @@ pub fn broadcast_addr() -> net::SocketAddr {
 
 fn art_poll_packet<W>(mut wr: W) -> io::Result<()>
     where W: io::Write {
-    wr.write(b"Art-Net\0")?; // Artnet Header
+    wr.write_all(b"Art-Net\0")?; // Artnet Header
     wr.write_u16::<LittleEndian>(0x2000)?; // OpCode
     wr.write_u8(4)?; // ProtVerHi
     wr.write_u8(14)?; // ProtVerLo
@@ -127,7 +127,7 @@ fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
     if data.len() >= 0xffff {
         return Err(io::Error::new(io::ErrorKind::Other, "data exceeds max dmx packet length"));
     }
-    wr.write(b"Art-Net\0")?; // Artnet Header
+    wr.write_all(b"Art-Net\0")?; // Artnet Header
     wr.write_u16::<LittleEndian>(0x5000)?; // OpCode
     wr.write_u8(4)?; // ProtVerHi
     wr.write_u8(14)?; // ProtVerLo
@@ -140,7 +140,8 @@ fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
     Ok(())
 }
 
-/// Like UdpSocket::bind, but sets the socket reuse flags before binding.
+/// Like `UdpSocket::bind`, but sets the socket reuse flags before binding.
+#[cfg_attr(feature="clippy", allow(needless_pass_by_value))]
 unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
     let addr = to_addr.to_socket_addrs()?.next().unwrap(); // TODO: Use the other addresses.
 
@@ -184,5 +185,5 @@ unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSo
         libc::close(fd);
         return Err(io::Error::last_os_error());
     }
-    return Ok(net::UdpSocket::from_raw_fd(fd));
+    Ok(net::UdpSocket::from_raw_fd(fd))
 }

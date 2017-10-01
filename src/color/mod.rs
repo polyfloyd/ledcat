@@ -46,7 +46,7 @@ impl Correction {
         };
         let comp = |max| {
             (0..256)
-                .map(|i| f64::round(srgb(i as f64 / 255.0) * max as f64) as u8)
+                .map(|i| f64::round(srgb(f64::from(i) / 255.0) * f64::from(max)) as u8)
                 .collect()
         };
         Correction {

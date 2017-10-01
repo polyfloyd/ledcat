@@ -1,7 +1,7 @@
 use std::collections;
 use std::io::{self, Write};
 use std::net;
-use std::str::{self, FromStr};
+use std::str::FromStr;
 use std::sync;
 use std::thread;
 use std::time;
@@ -91,7 +91,7 @@ fn artnet_discover() -> io::Result<()> {
     thread::spawn(move || {
         let mut out = io::stderr();
         for ch in ['|', '/', '-', '\\'].iter().cycle() {
-            if let Ok(_) = close_rx.try_recv() {
+            if close_rx.try_recv().is_ok() {
                 break;
             }
             write!(&mut out, "\r{}", ch).unwrap();

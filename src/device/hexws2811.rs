@@ -13,12 +13,12 @@ impl Device for HexWS2811 {
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         for pix in pixels.iter().rev() {
             writer.write_all(&[
-                ((pix.g as u16 * 256) & 0xff) as u8,
-                ((pix.g as u16 * 256) >> 8) as u8,
-                ((pix.r as u16 * 256) & 0xff) as u8,
-                ((pix.r as u16 * 256) >> 8) as u8,
-                ((pix.b as u16 * 256) & 0xff) as u8,
-                ((pix.b as u16 * 256) >> 8) as u8,
+                ((u16::from(pix.g) * 256) & 0xff) as u8,
+                ((u16::from(pix.g) * 256) >> 8) as u8,
+                ((u16::from(pix.r) * 256) & 0xff) as u8,
+                ((u16::from(pix.r) * 256) >> 8) as u8,
+                ((u16::from(pix.b) * 256) & 0xff) as u8,
+                ((u16::from(pix.b) * 256) >> 8) as u8,
             ])?;
         }
         writer.write_all(&[0xff, 0xff, 0xff, 0xf0])

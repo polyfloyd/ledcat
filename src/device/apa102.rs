@@ -27,7 +27,7 @@ impl Device for Apa102 {
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         writer.write_all(&[0x00; 4])?;
         for pix in pixels {
-            writer.write_all(&[0b11100000 | self.grayscale, pix.b, pix.g, pix.r])?;
+            writer.write_all(&[0b1110_0000 | self.grayscale, pix.b, pix.g, pix.r])?;
         }
         Ok(())
     }
@@ -60,6 +60,7 @@ pub fn from_command(args: &clap::ArgMatches) -> Box<Device> {
     })
 }
 
+#[cfg_attr(feature="clippy", allow(needless_pass_by_value))]
 fn validate_grayscale(v: String) -> Result<(), String> {
     match v.parse::<u8>() {
         Ok(i) => {
