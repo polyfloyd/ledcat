@@ -3,6 +3,7 @@ use std::io;
 use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::os::unix::io::AsRawFd;
 use std::path;
+use std::time;
 use libc;
 use nix::poll;
 
@@ -28,10 +29,12 @@ pub struct Reader {
     buffers: Vec<Vec<u8>>,
     // The current buffer selected for output.
     current: io::Cursor<Vec<u8>>,
+    // The time after which a partially received frame should be discarded.
+    clear_timeout: Option<time::Duration>,
 }
 
 impl Reader {
-    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, when_eof: WhenEOF) -> io::Result<Reader>
+    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, when_eof: WhenEOF, clear_timeout: Option<time::Duration>) -> io::Result<Reader>
         where P: AsRef<path::Path> {
         let files: io::Result<Vec<Box<ReadFd + Send>>> = filenames.into_iter().map(|filename| {
             let mut open_opts = fs::OpenOptions::new();
@@ -65,10 +68,10 @@ impl Reader {
 
             Ok(Box::<ReadFd + Send>::from(Box::new(file)))
         }).collect();
-        Ok(Reader::from(files?, switch_after, when_eof))
+        Ok(Reader::from(files?, switch_after, when_eof, clear_timeout))
     }
 
-    pub fn from(inputs: Vec<Box<ReadFd + Send>>, switch_after: usize, when_eof: WhenEOF) -> Reader {
+    pub fn from(inputs: Vec<Box<ReadFd + Send>>, switch_after: usize, when_eof: WhenEOF, clear_timeout: Option<time::Duration>) -> Reader {
         assert_ne!(inputs.len(), 0);
         let buffers = (0..inputs.len())
             .map(|_| Vec::with_capacity(switch_after))
@@ -79,6 +82,7 @@ impl Reader {
             when_eof,
             inputs,
             current: io::Cursor::new(Vec::new()),
+            clear_timeout,
         }
     }
 }
@@ -94,7 +98,16 @@ impl io::Read for Reader {
                         poll::PollFd::new(inp.as_raw_fd(), poll::POLLIN)
                     })
                     .collect();
-                io_err!(poll::poll(&mut poll_fds, 1_000))?;
+                let timeout = self.clear_timeout.as_ref()
+                    .map(|t| t.as_secs() as i32 * 1_000 + t.subsec_nanos() as i32 / 1_000_000)
+                    .unwrap_or(-1);
+                if io_err!(poll::poll(&mut poll_fds, timeout))? == 0 {
+                    assert!(self.clear_timeout.is_some());
+                    // Timeout expired, clear the input buffers.
+                    for buf in &mut self.buffers {
+                        buf.clear();
+                    }
+                }
 
                 let mut num_open = poll_fds.len();
                 let mut ready_index = None;
@@ -159,7 +172,7 @@ mod tests {
                 $block;
                 let _ = tx.send(());
             });
-            if let Err(_) = rx.recv_timeout($timeout) {
+            if rx.recv_timeout($timeout).is_err() {
                 panic!("Timeout expired");
             }
         }
@@ -199,6 +212,7 @@ mod tests {
             vec![new_iter_reader(testdata.clone().into_iter())],
             len,
             WhenEOF::Close,
+            None,
         );
 
         for i in 0..num {
@@ -220,6 +234,7 @@ mod tests {
             (1..num + 1).map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<ReadFd + Send>).collect(),
             len,
             WhenEOF::Close,
+            None,
         );
 
         for i in 1..num + 1 {
@@ -239,6 +254,7 @@ mod tests {
             vec![new_iter_reader(iter::empty()), new_iter_reader(iter::empty())],
             1,
             WhenEOF::Close,
+            None,
         );
         timeout!(time::Duration::new(1, 0), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
@@ -252,6 +268,7 @@ mod tests {
             vec![new_iter_reader(iter::empty())],
             1,
             WhenEOF::Retry,
+            None,
         );
         timeout!(time::Duration::new(0, 100_000_000), {
             io::copy(&mut reader, &mut io::sink()).unwrap();
@@ -280,6 +297,7 @@ mod tests {
             vec![&fifo1_path, &fifo2_path],
             len,
             WhenEOF::Close,
+            None,
         ).unwrap();
         let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
         let mut fifo2 = fs::OpenOptions::new().write(true).open(&fifo2_path).unwrap();
@@ -309,5 +327,44 @@ mod tests {
         });
 
         tmp.close().unwrap();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn clear_timeout() {
+        use libc;
+        let len = 10;
+        let timeout = time::Duration::new(0, 100_000_000); // 100ms
+
+        let tmp = tempdir::TempDir::new("clear_timeout").unwrap();
+        let fifo_path = tmp.path().join("fifo").into_os_string();
+        unsafe {
+            let f = ffi::CString::new(fifo_path.to_str().unwrap()).unwrap();
+            assert_eq!(0, libc::mkfifo(f.as_ptr(), 0o666));
+        }
+        let mut reader = Reader::from_files(
+            vec![&fifo_path],
+            len,
+            WhenEOF::Close,
+            Some(timeout),
+        ).unwrap();
+        let mut fifo = fs::OpenOptions::new().write(true).open(&fifo_path).unwrap();
+
+        let thread = thread::spawn(move || {
+            // Read a full frame, it should not contain data from the first partially sent frame.
+            let mut rd_buf = vec![0; len];
+            reader.read_exact(&mut rd_buf).unwrap();
+            assert_eq!(vec![2; len], rd_buf);
+        });
+
+        // Send a partial frame over the fifo.
+        copy_iter(&mut fifo, iter::repeat(1).take(len - 1));
+
+        // Wait for the clear timeout to expire and the partial frame to be discarded.
+        thread::sleep(timeout * 2);
+        // Send a full frame over the fifo.
+        copy_iter(&mut fifo, iter::repeat(2).take(len));
+
+        thread.join().unwrap();
     }
 }

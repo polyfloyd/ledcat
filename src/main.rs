@@ -63,6 +63,14 @@ fn main() {
             .short("l")
             .long("linger")
             .help("Keep trying to read from the input(s) after EOF is reached"))
+        .arg(clap::Arg::with_name("clear-timeout")
+            .long("clear-timeout")
+            .takes_value(true)
+            .default_value("100")
+            .validator(regex_validator!(r"^[1-9]\d*$"))
+            .conflicts_with("framerate")
+            .help("Sets a timeout in milliseconds after which partially read frames are deleted.\
+                   If a framerate is set, a timeout is calculated automatically."))
         .arg(clap::Arg::with_name("geometry")
             .short("g")
             .long("geometry")
@@ -245,7 +253,13 @@ fn main() {
             f => f,
         })
         .collect();
-    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_eof).unwrap();
+    let clear_timeout = frame_interval.map(|t| t * 2)
+        .or_else(|| {
+            matches.value_of("clear-timeout")
+                .map(|v| v.parse::<u32>().unwrap())
+                .map(|ms| time::Duration::new(0, ms * 1_000_000))
+        });
+    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_eof, clear_timeout).unwrap();
 
     loop {
         let start = time::Instant::now();
