@@ -66,7 +66,6 @@ fn main() {
         .arg(clap::Arg::with_name("clear-timeout")
             .long("clear-timeout")
             .takes_value(true)
-            .default_value("100")
             .validator(regex_validator!(r"^[1-9]\d*$"))
             .conflicts_with("framerate")
             .help("Sets a timeout in milliseconds after which partially read frames are deleted.\
@@ -254,12 +253,13 @@ fn main() {
         })
         .collect();
     let clear_timeout = frame_interval.map(|t| t * 2)
-        .or_else(|| {
-            matches.value_of("clear-timeout")
+        .unwrap_or_else(|| {
+            let ms = matches.value_of("clear-timeout")
                 .map(|v| v.parse::<u32>().unwrap())
-                .map(|ms| time::Duration::new(0, ms * 1_000_000))
+                .unwrap_or(100);
+            time::Duration::new(0, ms * 1_000_000)
         });
-    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_eof, clear_timeout).unwrap();
+    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_eof, Some(clear_timeout)).unwrap();
 
     loop {
         let start = time::Instant::now();
