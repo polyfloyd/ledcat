@@ -1,5 +1,4 @@
 use std::io;
-use std::mem;
 use std::net::ToSocketAddrs;
 use std::net;
 use std::os::unix::io::FromRawFd;
@@ -7,7 +6,7 @@ use std::str;
 use std::sync;
 use std::thread;
 use std::time;
-use libc;
+use nix::sys::socket;
 use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
 use super::target::*;
 
@@ -22,7 +21,7 @@ pub struct Unicast {
 
 impl Unicast {
     pub fn to(target: Box<Target>, frame_size: usize) -> io::Result<Unicast> {
-        let socket = unsafe { reuse_bind(("0.0.0.0", PORT)) }?;
+        let socket = reuse_bind(("0.0.0.0", PORT))?;
         socket.set_broadcast(true)?;
         Ok(Unicast {
                socket,
@@ -71,7 +70,7 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<St
             )
         }
 
-        let socket = try_or_send!(unsafe { reuse_bind(("0.0.0.0", PORT)) });
+        let socket = try_or_send!(reuse_bind(("0.0.0.0", PORT)));
         try_or_send!(socket.set_broadcast(true));
         try_or_send!(socket.set_read_timeout(Some(time::Duration::new(1, 0))));
 
@@ -142,48 +141,23 @@ fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
 
 /// Like `UdpSocket::bind`, but sets the socket reuse flags before binding.
 #[cfg_attr(feature="clippy", allow(needless_pass_by_value))]
-unsafe fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
-    let addr = to_addr.to_socket_addrs()?.next().unwrap(); // TODO: Use the other addresses.
+fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
+    let addr = to_addr.to_socket_addrs()?.next().unwrap();
+    let fd = io_err!(socket::socket(
+        socket::AddressFamily::Inet,
+        socket::SockType::Datagram,
+        socket::SockFlag::empty(),
+        0,
+    ))?;
 
-    let fd = libc::socket(libc::AF_INET, libc::SOCK_DGRAM, 0);
-    if fd < 0 {
-        return Err(io::Error::last_os_error());
-    }
+    io_err!(socket::setsockopt(fd, socket::sockopt::ReuseAddr, &true))?;
+    io_err!(socket::setsockopt(fd, socket::sockopt::ReusePort, &true))?;
 
-    let yes: u32 = 1;
-    let yes_ptr = &yes as *const _ as *const libc::c_void;
-    if libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEADDR, yes_ptr, 4) == -1 {
-        let err = io::Error::last_os_error();
-        libc::close(fd);
-        return Err(err);
+    if addr.is_ipv6() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Artnet does not support IPv6 :("))
     }
-    if libc::setsockopt(fd, libc::SOL_SOCKET, libc::SO_REUSEPORT, yes_ptr, 4) == -1 {
-        let err = io::Error::last_os_error();
-        libc::close(fd);
-        return Err(err);
-    }
+    let sock_addr = socket::SockAddr::new_inet(socket::InetAddr::from_std(&addr));
+    io_err!(socket::bind(fd, &sock_addr))?;
 
-    let sock_addr: libc::sockaddr_in = match addr {
-        net::SocketAddr::V4(addr) => {
-            libc::sockaddr_in {
-                sin_family: libc::AF_INET as u16,
-                sin_port: (addr.port() >> 8) | (addr.port() << 8), // WTF
-                sin_addr: libc::in_addr {
-                    s_addr: io::Cursor::new(addr.ip().octets())
-                        .read_u32::<BigEndian>()
-                        .unwrap(),
-                },
-                sin_zero: [0; 8],
-            }
-        }
-        net::SocketAddr::V6(_) => unimplemented!(), // TODO
-    };
-    let rt = libc::bind(fd,
-                        &sock_addr as *const _ as *const libc::sockaddr,
-                        mem::size_of::<libc::sockaddr_in>() as u32);
-    if rt == -1 {
-        libc::close(fd);
-        return Err(io::Error::last_os_error());
-    }
-    Ok(net::UdpSocket::from_raw_fd(fd))
+    Ok(unsafe { net::UdpSocket::from_raw_fd(fd) })
 }

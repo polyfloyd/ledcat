@@ -4,8 +4,7 @@ use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::os::unix::io::AsRawFd;
 use std::path;
 use std::time;
-use libc;
-use nix::poll;
+use nix::{fcntl, poll};
 
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -46,24 +45,18 @@ impl Reader {
                 // means that when multiple FIFO's are used, they all have to be open at once
                 // before this program can continue.
                 // Opening the file with O_NONBLOCK will ensure that we don't have to wait.
-                open_opts.custom_flags(libc::O_NONBLOCK);
+                open_opts.custom_flags(fcntl::O_NONBLOCK.bits());
             }
 
             let file = open_opts.open(&filename)?;
 
             if is_fifo {
-                unsafe {
-                    // Now unset the O_NONBLOCK flag so reads will block again.
-                    let fd = file.as_raw_fd();
-                    let opts = libc::fcntl(fd, libc::F_GETFL);
-                    assert!(opts & libc::O_NONBLOCK > 0);
-                    if opts < 0 {
-                        return Err(io::Error::last_os_error());
-                    }
-                    if libc::fcntl(fd, libc::F_SETFL, opts & !libc::O_NONBLOCK) < 0 {
-                        return Err(io::Error::last_os_error());
-                    }
-                }
+                // Now unset the O_NONBLOCK flag so reads will block again.
+                let fd = file.as_raw_fd();
+                let opts = fcntl::OFlag::from_bits(io_err!(fcntl::fcntl(fd, fcntl::F_GETFL))?)
+                    .expect("Invalid bitfield returned by fcntl(F_GETFL)");
+                assert!(opts.contains(fcntl::O_NONBLOCK));
+                io_err!(fcntl::fcntl(fd, fcntl::F_SETFL(opts & !fcntl::O_NONBLOCK)))?;
             }
 
             Ok(Box::<ReadFd + Send>::from(Box::new(file)))
