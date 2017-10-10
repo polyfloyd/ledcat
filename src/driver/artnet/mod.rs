@@ -6,8 +6,7 @@ use std::sync;
 use std::thread;
 use std::time;
 use clap;
-use ::device;
-use ::geometry;
+use ::device::*;
 
 mod unicast;
 mod target;
@@ -48,15 +47,15 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
             .help("Discover artnet nodes"))
 }
 
-pub fn from_command(args: &clap::ArgMatches, maybe_dimensions: Option<geometry::Dimensions>) -> io::Result<Option<Box<device::Output>>> {
+pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
     if args.is_present("discover") {
         if let Err(err) = artnet_discover() {
             eprintln!("{}", err);
         }
-        return Ok(None);
+        return Ok(FromCommand::SubcommandHandled);
     }
 
-    let dev = Box::new(device::generic::Generic {});
+    let dev = Box::new(generic::Generic {});
     let artnet_target: Box<Target> = if args.is_present("broadcast") {
         Box::new(Broadcast{})
     } else if let Some(list_path) = args.value_of("target-list") {
@@ -68,19 +67,11 @@ pub fn from_command(args: &clap::ArgMatches, maybe_dimensions: Option<geometry::
         Box::new(addresses)
     } else {
         eprintln!("Missing artnet target. Please set --target IP or --broadcast");
-        return Ok(None);
+        return Ok(FromCommand::SubcommandHandled);
     };
 
-    let dimensions = match maybe_dimensions {
-        Some(d) => d,
-        None => {
-            eprintln!("Please set the frame size through either --num-pixels or --geometry");
-            return Ok(None);
-        },
-    };
-
-    let output = Unicast::to(artnet_target, dimensions.size() * 3)?;
-    Ok(Some(Box::new((dev, output))))
+    let output = Unicast::to(artnet_target, gargs.dimensions()?.size() * 3)?;
+    Ok(FromCommand::Output(Box::new((dev, output))))
 }
 
 fn artnet_discover() -> io::Result<()> {

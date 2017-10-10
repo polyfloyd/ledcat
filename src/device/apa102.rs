@@ -49,15 +49,15 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
             .help("If spidev is used as driver, use this to set the clock frequency in Hertz"))
 }
 
-pub fn from_command(args: &clap::ArgMatches) -> Box<Device> {
+pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
     let grayscale = args.value_of("grayscale").unwrap()
         .parse().unwrap();
     let spidev_clock = args.value_of("spidev-clock").unwrap()
         .parse().unwrap();
-    Box::new(Apa102 {
+    Ok(FromCommand::Device(Box::new(Apa102 {
         grayscale,
         spidev_clock,
-    })
+    })))
 }
 
 #[cfg_attr(feature="clippy", allow(needless_pass_by_value))]

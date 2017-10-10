@@ -131,9 +131,7 @@ fn main() {
             .short("1")
             .long("one")
             .conflicts_with("framerate")
-            .help("Send a single frame to the output and exit"))
-        .subcommand(artnet::command())
-        .subcommand(hub75::command());
+            .help("Send a single frame to the output and exit"));
 
     let mut device_constructors = collections::HashMap::new();
     for device_init in device::devices() {
@@ -150,64 +148,62 @@ fn main() {
         return;
     }
 
-    // Don't require the display geomtry to be set just yet, a non-outputting subcommand may not
-    // need it anyway.
-    let maybe_dimensions = matches.value_of("geometry")
-        .and_then(|v| v.parse().ok());
-
-    let mut output: Box<Output> = if sub_name == "artnet" {
-        match artnet::from_command(sub_matches.unwrap(), maybe_dimensions).unwrap() {
-            Some(output) => output,
-            None => return, // If a non-outputting subcommand has been executed.
-        }
-
-    } else if sub_name == "hub75" {
-        let (w, h) = match maybe_dimensions {
-            None|Some(geometry::Dimensions::One(_)) => {
-                eprintln!("hub75 requires 2D geometry");
-                return;
-            },
-            Some(geometry::Dimensions::Two(w, h)) => (w, h),
-        };
-        Box::new(hub75::from_command(sub_matches.unwrap(), w, h).unwrap())
-
-    } else {
-        let dev = device_constructors[sub_name](sub_matches.unwrap());
-        let output_file = path::PathBuf::from(match matches.value_of("output").unwrap() {
-            "-" => "/dev/stdout",
-            _ => matches.value_of("output").unwrap(),
-        });
-
-        let driver_name = matches.value_of("driver")
-            .map(|s: &str| s.to_string())
-            .or_else(|| driver::detect(&output_file));
-        let driver_name = match driver_name {
-            Some(n) => n,
-            None => {
-                eprintln!("Unable to determine the driver to use. Please set one using --driver.");
-                return;
-            }
-        };
-        let output: Box<io::Write> = match driver_name.as_str() {
-            "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
-            "spidev" => {
-                Box::new(spidev::open(&output_file, dev.borrow()).unwrap())
-            },
-            "serial" => {
-                let baudrate = matches.value_of("serial-baudrate").unwrap().parse::<u32>().unwrap();
-                Box::new(serial::open(&output_file, baudrate).unwrap())
-            },
-            _ => {
-                eprintln!("Unknown driver {}", driver_name);
-                return;
-            }
-        };
-        Box::new((dev, output))
+    let gargs = GlobalArgs {
+        // Don't require the display geomtry to be set just yet, a non-outputting subcommand may
+        // not need it anyway.
+        dimensions: matches.value_of("geometry")
+            .and_then(|v| v.parse().ok()),
     };
-    let dimensions = match maybe_dimensions {
-        Some(d) => d,
-        None => {
-            eprintln!("Please set the frame size through either --num-pixels or --geometry");
+    let mut output: Box<Output> = {
+        let result = device_constructors[sub_name](sub_matches.unwrap(), &gargs);
+        let from_command = match result {
+            Ok(v) => v,
+            Err(err) => {
+                println!("{}", err);
+                return;
+            },
+        };
+        match from_command {
+            FromCommand::Device(dev) => {
+                let output_file = path::PathBuf::from(match matches.value_of("output").unwrap() {
+                    "-" => "/dev/stdout",
+                    _ => matches.value_of("output").unwrap(),
+                });
+
+                let driver_name = matches.value_of("driver")
+                    .map(|s: &str| s.to_string())
+                    .or_else(|| driver::detect(&output_file));
+                let driver_name = match driver_name {
+                    Some(n) => n,
+                    None => {
+                        eprintln!("Unable to determine the driver to use. Please set one using --driver.");
+                        return;
+                    }
+                };
+                let output: Box<io::Write> = match driver_name.as_str() {
+                    "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
+                    "spidev" => {
+                        Box::new(spidev::open(&output_file, dev.borrow()).unwrap())
+                    },
+                    "serial" => {
+                        let baudrate = matches.value_of("serial-baudrate").unwrap().parse::<u32>().unwrap();
+                        Box::new(serial::open(&output_file, baudrate).unwrap())
+                    },
+                    _ => {
+                        eprintln!("Unknown driver {}", driver_name);
+                        return;
+                    }
+                };
+                Box::new((dev, output))
+            },
+            FromCommand::Output(output) => output,
+            FromCommand::SubcommandHandled => return,
+        }
+    };
+    let dimensions = match gargs.dimensions() {
+        Ok(d) => d,
+        Err(err) => {
+            eprintln!("{}", err);
             return;
         },
     };

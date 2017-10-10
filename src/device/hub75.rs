@@ -146,7 +146,9 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
             .help("The number of grayscale refreshes per frame that should be performed"))
 }
 
-pub fn from_command(args: &clap::ArgMatches, width: usize, height: usize) -> io::Result<Hub75> {
+pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
+    let (width, height) = gargs.dimensions_2d()?;
+
     let pwm_cycles = args.value_of("pwm").unwrap()
         .parse().unwrap();
     let pins = |name: &str| -> io::Result<Vec<SysFsGpioOutput>> {
@@ -195,5 +197,5 @@ pub fn from_command(args: &clap::ArgMatches, width: usize, height: usize) -> io:
     thread::spawn(move || {
         worker.run();
     });
-    Ok(Hub75 { frame_tx, err_rx })
+    Ok(FromCommand::Output(Box::new(Hub75 { frame_tx, err_rx })))
 }

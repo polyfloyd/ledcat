@@ -23,6 +23,6 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
         .about("Output data as RGB24")
 }
 
-pub fn from_command(_: &clap::ArgMatches) -> Box<Device> {
-    Box::new(Generic {})
+pub fn from_command(_: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
+    Ok(FromCommand::Device(Box::new(Generic {})))
 }

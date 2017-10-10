@@ -3,6 +3,7 @@ use std::ops::Deref;
 use clap;
 use color::*;
 use driver::*;
+use geometry::*;
 
 pub mod apa102;
 pub mod generic;
@@ -67,9 +68,46 @@ impl<T> Device for Box<T>
     }
 }
 
-pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, fn(&clap::ArgMatches) -> Box<Device>)> {
-    vec![(apa102::command(), apa102::from_command),
-         (generic::command(), generic::from_command),
-         (hexws2811::command(), hexws2811::from_command),
-         (lpd8806::command(), lpd8806::from_command)]
+
+pub struct GlobalArgs {
+    pub dimensions: Option<Dimensions>,
+}
+
+impl GlobalArgs {
+    pub fn dimensions(&self) -> io::Result<Dimensions> {
+        self.dimensions.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Please set the frame size"))
+    }
+
+    pub fn dimensions_2d(&self) -> io::Result<(usize, usize)> {
+        match self.dimensions()? {
+            Dimensions::One(_) => {
+                Err(io::Error::new(io::ErrorKind::Other, "This device requires 2D geometry"))
+            },
+            Dimensions::Two(w, h) => Ok((w, h)),
+        }
+    }
+}
+
+/// Device implemetations are expected to be accompanied by a function that constructs and
+/// configures a new instance from a set of command line arguments.
+pub enum FromCommand {
+    /// A device was constructed, but no driver was configured/implemented.
+    Device(Box<Device>),
+    /// An output was constructed, no actions to find a driver are needed.
+    Output(Box<Output>),
+    /// A subcommand was handled, terminate the program without performing IO.
+    SubcommandHandled,
+}
+
+pub type FromCommandFn = fn(&clap::ArgMatches, &GlobalArgs) -> io::Result<FromCommand>;
+
+pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, FromCommandFn)> {
+    vec![
+        (apa102::command(), apa102::from_command),
+        (artnet::command(), artnet::from_command),
+        (generic::command(), generic::from_command),
+        (hexws2811::command(), hexws2811::from_command),
+        (hub75::command(), hub75::from_command),
+        (lpd8806::command(), lpd8806::from_command),
+    ]
 }
