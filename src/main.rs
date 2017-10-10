@@ -37,10 +37,6 @@ mod input;
 
 
 fn main() {
-    let geom_default = match env::var("LEDCAT_GEOMETRY") {
-        Ok(s) => s,
-        Err(_) => "".to_string(),
-    };
     let mut cli = clap::App::new("ledcat")
         .version("0.0.1")
         .author("polyfloyd <floyd@polyfloyd.net>")
@@ -76,12 +72,18 @@ fn main() {
             .long("geometry")
             .alias("num-pixels")
             .takes_value(true)
-            .default_value(&geom_default)
-            .validator(|val| match val.parse::<Dimensions>() {
-                Ok(_) => Ok(()),
-                Err(err) => Err(format!("{}", err)),
+            .default_value("env")
+            .validator(|val| {
+                if val == "env" {
+                    return Ok(())
+                }
+                match val.parse::<Dimensions>() {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(format!("{}", err)),
+                }
             })
-            .help("Specify the size of a two dimensional display"))
+            .help("Specify the size of the display. Can be either a number for 1D, WxH for 2D, or\
+                  \"env\" to load the LEDCAT_GEOMETRY environment variable."))
         .arg(clap::Arg::with_name("transpose")
             .short("t")
             .long("transpose")
@@ -152,8 +154,16 @@ fn main() {
     let gargs = GlobalArgs {
         // Don't require the display geomtry to be set just yet, a non-outputting subcommand may
         // not need it anyway.
-        dimensions: matches.value_of("geometry")
-            .and_then(|v| v.parse().ok()),
+        dimensions: {
+            let env = env::var("LEDCAT_GEOMETRY");
+            match matches.value_of("geometry").unwrap() {
+                "env" => match env.as_ref().map(|e| e.as_str()) {
+                    Err(_)|Ok("") => None,
+                    Ok(e) => Some(e),
+                },
+                v => Some(v),
+            }.and_then(|v| v.parse().ok())
+        },
     };
     let mut output: Box<Output> = {
         let result = device_constructors[sub_name](sub_matches.unwrap(), &gargs);
