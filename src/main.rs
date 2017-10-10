@@ -19,6 +19,7 @@ use std::fs;
 use std::io;
 use std::ops::DerefMut;
 use std::path;
+use std::process;
 use std::thread;
 use std::time;
 use ::color::*;
@@ -145,7 +146,7 @@ fn main() {
         let mut out = io::stderr();
         cli.write_help(&mut out).unwrap();
         eprintln!();
-        return;
+        process::exit(1);
     }
 
     let gargs = GlobalArgs {
