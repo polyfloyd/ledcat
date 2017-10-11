@@ -45,20 +45,12 @@ impl Reader {
                 // means that when multiple FIFO's are used, they all have to be open at once
                 // before this program can continue.
                 // Opening the file with O_NONBLOCK will ensure that we don't have to wait.
+                // After the file has been opened, there is no need to make reads block again since
+                // poll(2) is used to check whether data is available.
                 open_opts.custom_flags(fcntl::O_NONBLOCK.bits());
             }
 
             let file = open_opts.open(&filename)?;
-
-            if is_fifo {
-                // Now unset the O_NONBLOCK flag so reads will block again.
-                let fd = file.as_raw_fd();
-                let opts = fcntl::OFlag::from_bits(io_err!(fcntl::fcntl(fd, fcntl::F_GETFL))?)
-                    .expect("Invalid bitfield returned by fcntl(F_GETFL)");
-                assert!(opts.contains(fcntl::O_NONBLOCK));
-                io_err!(fcntl::fcntl(fd, fcntl::F_SETFL(opts & !fcntl::O_NONBLOCK)))?;
-            }
-
             Ok(Box::<ReadFd + Send>::from(Box::new(file)))
         }).collect();
         Ok(Reader::from(files?, switch_after, when_eof, clear_timeout))
