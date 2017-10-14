@@ -7,7 +7,7 @@ dependencies = [
  "clap 2.26.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy 0.0.165 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive-error 0.0.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "gpio 0.3.0 (git+https://github.com/polyfloyd/gpio-rs.git?rev=more-speed)",
+ "gpio 0.3.0",
  "libc 0.2.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "nix 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -237,7 +237,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "gpio"
 version = "0.3.0"
-source = "git+https://github.com/polyfloyd/gpio-rs.git?rev=more-speed#41b904208a8407bf88deec2fd0a3d23075c7c531"
 
 [[package]]
 name = "itertools"
@@ -609,7 +608,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ff511d5dc435d703f4971bc399647c9bc38e20cb41452e3b9feb4765419ed3f3"
 "checksum getopts 0.2.15 (registry+https://github.com/rust-lang/crates.io-index)" = "65922871abd2f101a2eb0eaebadc66668e54a87ad9c3dd82520b5f86ede5eff9"
 "checksum glob 0.2.11 (registry+https://github.com/rust-lang/crates.io-index)" = "8be18de09a56b60ed0edf84bc9df007e30040691af7acd1c41874faac5895bfb"
-"checksum gpio 0.3.0 (git+https://github.com/polyfloyd/gpio-rs.git?rev=more-speed)" = "<none>"
 "checksum itertools 0.6.4 (registry+https://github.com/rust-lang/crates.io-index)" = "26cfe79e01eb976c9a5348928902cedb9c81dfb65bac877bf793837b9c4cbb62"
 "checksum itoa 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8324a32baf01e2ae060e9de58ed0bc2320c9a2833491ee36cd3b4c414de4db8c"
 "checksum kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)" = "7507624b29483431c0ba2d82aece8ca6cdba9382bff4ddd0f7490560c056098d"
