@@ -1,15 +1,24 @@
 [package]
 name = "ledcat"
-description = "Ledcat is simple utility that aims to provide a standard interface for driving LED-strips and such"
-version = "0.1.0"
+description = "Control lots of LED's over lots of protocols"
+version = "0.1.1"
+repository = "https://github.com/polyfloyd/ledcat"
 authors = ["polyfloyd <floyd@polyfloyd.net>"]
 readme = "README.md"
 license = "GPL-3.0"
+keywords = ["leds", "led-strips", "artnet", "ws2812b"]
+categories = ["command-line-utilities", "embedded", "hardware-support"]
+
+[badges]
+travis-ci = { repository = "polyfloyd/ledcat", branch = "master" }
+
+[features]
+default = []
 
 [dependencies]
 byteorder = "~1.1.0"
 clap = "~2.26.0"
-clippy = { version = "*", optional = true }
+clippy = { version = "0.0.*", optional = true }
 derive-error = "^0.0.3"
 gpio = { path = "components/gpio", version = "^0.3.0" }
 libc = "^0.2.29"
