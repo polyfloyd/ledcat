@@ -306,7 +306,7 @@ fn pipe_frame<R>(mut input: R,
                 b: ((u16::from(pix_in.b) * dim16) / 0xff) as u8,
             }
         };
-        let pix_corrected = correction.correct(pix_dimmed);
+        let pix_corrected = correction.correct(&pix_dimmed);
         buffer[*transpose_mapped] = pix_corrected;
     }
     dev.output_frame(&buffer)?;

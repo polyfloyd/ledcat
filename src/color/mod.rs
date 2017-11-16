@@ -56,7 +56,7 @@ impl Correction {
         }
     }
 
-    pub fn correct(&self, pix: Pixel) -> Pixel {
+    pub fn correct(&self, pix: &Pixel) -> Pixel {
         Pixel {
             r: self.r[pix.r as usize],
             g: self.g[pix.g as usize],

@@ -190,7 +190,7 @@ mod tests {
 
     fn copy_iter<I: iter::Iterator<Item = u8>>(wr: &mut io::Write, it: I) {
         let v: Vec<u8> = it.collect();
-        wr.write(&v).unwrap();
+        wr.write_all(&v).unwrap();
         wr.flush().unwrap();
     }
 
