@@ -11,6 +11,21 @@ Simply create a program that outputs 3 bytes of RGB for each pixel in your strip
 ## Documentation
 * [Transposition and display geometry](doc/transposition.md)
 
+## Install
+Install the [Rust Language](https://www.rust-lang.org/) if you have not already.
+
+Then, you can install ledcat directly using Cargo.
+```sh
+cargo install ledcat
+```
+Or build and install it manually:
+```sh
+git clone https://github.com/polyfloyd/ledcat.git
+cd ledcat
+cargo build --release
+cp target/release/ledcat /usr/local/bin/ledcat
+```
+
 ## Usage Examples
 ```sh
 # Make a strip of 30 apa102 leds all red.
