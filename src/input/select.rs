@@ -3,6 +3,7 @@ use std::io;
 use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
 use std::os::unix::io::AsRawFd;
 use std::path;
+use std::thread;
 use std::time;
 use nix::{fcntl, poll};
 
@@ -120,8 +121,17 @@ impl io::Read for Reader {
                     }
                 }
 
-                if num_open == 0 && self.when_eof == WhenEOF::Close {
-                    return Ok(0);
+                if num_open == 0 {
+                    if self.when_eof == WhenEOF::Close {
+                        return Ok(0);
+                    } else {
+                        // If a FIFO is used as input, poll will return not wait and immediately
+                        // return POLLHUP for the respective file descriptor. This would cause a
+                        // busy wait condition hogging system recources.
+                        let wait = self.clear_timeout
+                            .unwrap_or_else(|| time::Duration::new(0, 10_000_000));
+                        thread::sleep(wait);
+                    }
                 }
 
                 if let Some(i) = ready_index {
