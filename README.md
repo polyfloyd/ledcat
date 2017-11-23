@@ -9,6 +9,7 @@ LED-strips and such.
 Simply create a program that outputs 3 bytes of RGB for each pixel in your strip.
 
 ## Documentation
+* [Usage](doc/usage.md)
 * [Transposition and display geometry](doc/transposition.md)
 
 ## Install
