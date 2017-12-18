@@ -49,6 +49,14 @@ impl Reader {
                 // After the file has been opened, there is no need to make reads block again since
                 // poll(2) is used to check whether data is available.
                 open_opts.custom_flags(fcntl::O_NONBLOCK.bits());
+
+                if when_eof == WhenEOF::Retry {
+                    // When the first program writing to the FIFO closes the writing end, poll will
+                    // immediately return with a POLLHUP for the respective reading end because all
+                    // writing ends have been closed. If we open the FIFO for writing ourselves,
+                    // there will always be writers. This ensures that poll never returnes POLLHUP.
+                    open_opts.write(true);
+                }
             }
 
             let file = open_opts.open(&filename)?;
@@ -124,14 +132,11 @@ impl io::Read for Reader {
                 if num_open == 0 {
                     if self.when_eof == WhenEOF::Close {
                         return Ok(0);
-                    } else {
-                        // If a FIFO is used as input, poll will return not wait and immediately
-                        // return POLLHUP for the respective file descriptor. This would cause a
-                        // busy wait condition hogging system recources.
-                        let wait = self.clear_timeout
-                            .unwrap_or_else(|| time::Duration::new(0, 10_000_000));
-                        thread::sleep(wait);
                     }
+                    // Prevent a busy wait for inputs that make poll return immediately.
+                    let wait = self.clear_timeout
+                        .unwrap_or_else(|| time::Duration::new(0, 10_000_000));
+                    thread::sleep(wait);
                 }
 
                 if let Some(i) = ready_index {
@@ -161,16 +166,18 @@ mod tests {
     use self::rand::Rng;
 
     macro_rules! timeout {
-        ($timeout:expr, $block:block) => {
+        ($timeout:expr, $block:block) => {{
             let (tx, rx) = mpsc::sync_channel(1);
-            thread::spawn(move || {
-                $block;
+            let thread = thread::spawn(move || {
+                let val = $block;
                 let _ = tx.send(());
+                val
             });
             if rx.recv_timeout($timeout).is_err() {
                 panic!("Timeout expired");
             }
-        }
+            thread.join().unwrap()
+        }}
     }
 
     fn new_iter_reader<I>(iter: I) -> Box<fs::File>
@@ -257,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic(expected="Timeout expired")]
     fn read_eof_retry() {
         let mut reader = Reader::from(
             vec![new_iter_reader(iter::empty())],
