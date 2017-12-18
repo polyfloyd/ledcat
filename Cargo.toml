@@ -29,3 +29,6 @@ regex = "~0.2.2"
 assert_cli = "~0.5"
 rand = "~0.3"
 tempdir = "~0.3"
+
+[patch.crates-io]
+assert_cli = { git = "https://github.com/killercup/assert_cli" }
