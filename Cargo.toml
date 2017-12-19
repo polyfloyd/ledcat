@@ -16,19 +16,19 @@ travis-ci = { repository = "polyfloyd/ledcat", branch = "master" }
 default = []
 
 [dependencies]
-byteorder = "~1.1.0"
-clap = "~2.26.0"
+byteorder = "1.2.1"
+clap = "2.29.0"
 clippy = { version = "0.0.*", optional = true }
-derive-error = "^0.0.3"
-gpio = { path = "components/gpio", version = "^0.3.0" }
-libc = "^0.2.29"
-nix = "~0.9.0"
-regex = "~0.2.2"
+derive-error = "0.0.4"
+gpio = { path = "components/gpio", version = "0.3.0" }
+libc = "0.2.29"
+nix = "0.9.0"
+regex = "0.2.3"
 
 [dev-dependencies]
-assert_cli = "~0.5"
-rand = "~0.3"
-tempdir = "~0.3"
+assert_cli = "0.5.4"
+rand = "0.4.1"
+tempdir = "0.3.5"
 
 [patch.crates-io]
 assert_cli = { git = "https://github.com/killercup/assert_cli" }
