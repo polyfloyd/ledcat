@@ -16,7 +16,7 @@ fn calling_generic_pipe() {
     assert_cli::Assert::main_binary()
         .with_args(&["--geometry", "3", "--driver", "none", "generic"])
         .stdin(data)
-        .stderr().is("")
+        //.stderr().is("") TODO: https://github.com/killercup/assert_cli/issues/45
         .stdout().is(data)
         .unwrap();
 }
