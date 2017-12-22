@@ -10,6 +10,7 @@ pub mod generic;
 pub mod hexws2811;
 pub mod hub75;
 pub mod lpd8806;
+pub mod simulator;
 pub mod ws2812;
 
 
@@ -110,6 +111,7 @@ pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, FromCommandFn)> {
         (hexws2811::command(), hexws2811::from_command),
         (hub75::command(), hub75::from_command),
         (lpd8806::command(), lpd8806::from_command),
+        (simulator::command(), simulator::from_command),
         (ws2812::command(), ws2812::from_command),
     ]
 }
