@@ -35,7 +35,7 @@ impl Device for Ws2812 {
                 let mut obits: u32 = 0;
                 for i in 0..8 {
                     let middle_bit = (b >> i) & 1;
-                    obits |= 0b100 << (i * 3) | u32::from(middle_bit << 1);
+                    obits |= (0b100 | u32::from(middle_bit << 1)) << (i * 3);
                 }
                 vec![
                     ((obits >> 16) & 0xff) as u8,
