@@ -6,6 +6,8 @@ use ::device::*;
 pub struct AnsiDisplay {
     width: usize,
     height: usize,
+
+    initial_frame: bool,
 }
 
 impl Output for AnsiDisplay {
@@ -18,8 +20,12 @@ impl Output for AnsiDisplay {
         // performance.
         let mut buf = Vec::new();
 
-        // Clear the screen and any previous frame with it.
-        write!(buf, "\x1b[3J\x1b[H\x1b[2J")?;
+        // Clear the screen so there is no other stuff on it.
+        if self.initial_frame {
+            write!(buf, "\x1b[3J\x1b[H\x1b[2J")?;
+            self.initial_frame = false;
+        }
+        write!(buf, "\x1b[1;1H")?;
 
         // Two pixels are rendered at once using the Upper Half Block character. The top half is
         // colored with the foreground color while the lower half uses the background. This neat
@@ -57,5 +63,6 @@ pub fn from_command(_: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<From
     Ok(FromCommand::Output(Box::new(AnsiDisplay {
         width,
         height,
+        initial_frame: true,
     })))
 }
