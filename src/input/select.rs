@@ -48,7 +48,7 @@ impl Reader {
                 // Opening the file with O_NONBLOCK will ensure that we don't have to wait.
                 // After the file has been opened, there is no need to make reads block again since
                 // poll(2) is used to check whether data is available.
-                open_opts.custom_flags(fcntl::O_NONBLOCK.bits());
+                open_opts.custom_flags(fcntl::OFlag::O_NONBLOCK.bits());
 
                 if when_eof == WhenEOF::Retry {
                     // When the first program writing to the FIFO closes the writing end, poll will
@@ -89,7 +89,7 @@ impl io::Read for Reader {
                 // Perform a poll to see if there are any inputs ready for reading.
                 let mut poll_fds: Vec<_> = self.inputs.iter()
                     .map(|inp| {
-                        poll::PollFd::new(inp.as_raw_fd(), poll::POLLIN)
+                        poll::PollFd::new(inp.as_raw_fd(), poll::EventFlags::POLLIN)
                     })
                     .collect();
                 let timeout = self.clear_timeout.as_ref()
@@ -107,7 +107,7 @@ impl io::Read for Reader {
                 let mut ready_index = None;
                 for (i, p) in poll_fds.iter().enumerate() {
                     let rev = p.revents().unwrap();
-                    if rev.contains(poll::POLLIN) {
+                    if rev.contains(poll::EventFlags::POLLIN) {
                         let buf = &mut self.buffers[i];
                         let buf_used = buf.len();
                         assert_ne!(buf_used, self.switch_after);
@@ -124,7 +124,7 @@ impl io::Read for Reader {
                             ready_index = Some(i);
                             break;
                         }
-                    } else if rev.intersects(poll::POLLHUP|poll::POLLNVAL|poll::POLLERR) {
+                    } else if rev.intersects(poll::EventFlags::POLLHUP|poll::EventFlags::POLLNVAL|poll::EventFlags::POLLERR) {
                         num_open -= 1;
                     }
                 }
@@ -162,6 +162,8 @@ mod tests {
     use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
     use nix::sys::memfd::*;
+    use nix::sys::stat::Mode;
+    use nix::unistd;
     use super::*;
     use self::rand::Rng;
 
@@ -281,20 +283,14 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn read_unix_fifo() {
-        use libc;
-
         let len = 10;
         let (pat1, pat2) = (12, 42);
 
         let tmp = tempdir::TempDir::new("read_unix_fifo").unwrap();
-        let fifo1_path = tmp.path().join("fifo1").into_os_string();
-        let fifo2_path = tmp.path().join("fifo2").into_os_string();
-        unsafe {
-            let f1 = ffi::CString::new(fifo1_path.to_str().unwrap()).unwrap();
-            let f2 = ffi::CString::new(fifo2_path.to_str().unwrap()).unwrap();
-            assert_eq!(0, libc::mkfifo(f1.as_ptr(), 0o666));
-            assert_eq!(0, libc::mkfifo(f2.as_ptr(), 0o666));
-        }
+        let fifo1_path = tmp.path().join("fifo1");
+        let fifo2_path = tmp.path().join("fifo2");
+        unistd::mkfifo(&fifo1_path, Mode::from_bits(0o666).unwrap()).unwrap();
+        unistd::mkfifo(&fifo2_path, Mode::from_bits(0o666).unwrap()).unwrap();
 
         let mut reader = Reader::from_files(
             vec![&fifo1_path, &fifo2_path],
@@ -335,16 +331,12 @@ mod tests {
     #[test]
     #[cfg(unix)]
     fn clear_timeout() {
-        use libc;
         let len = 10;
         let timeout = time::Duration::new(0, 100_000_000); // 100ms
 
         let tmp = tempdir::TempDir::new("clear_timeout").unwrap();
-        let fifo_path = tmp.path().join("fifo").into_os_string();
-        unsafe {
-            let f = ffi::CString::new(fifo_path.to_str().unwrap()).unwrap();
-            assert_eq!(0, libc::mkfifo(f.as_ptr(), 0o666));
-        }
+        let fifo_path = tmp.path().join("fifo");
+        unistd::mkfifo(&fifo_path, Mode::from_bits(0o666).unwrap()).unwrap();
         let mut reader = Reader::from_files(
             vec![&fifo_path],
             len,

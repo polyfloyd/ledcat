@@ -11,9 +11,9 @@ pub fn open<P: AsRef<path::Path>>(path: P, baudrate: u32) -> Result<fs::File, dr
         .open(path)?;
     let fd = tty.as_raw_fd();
     let mut tio = termios::tcgetattr(fd)?;
-    tio.input_flags &= !(termios::ICRNL|termios::BRKINT);
-    tio.output_flags &= !(termios::OPOST|termios::ONLCR);
-    tio.local_flags &= !(termios::ICANON|termios::ISIG|termios::ECHO);
+    tio.input_flags &= !(termios::InputFlags::ICRNL|termios::InputFlags::BRKINT);
+    tio.output_flags &= !(termios::OutputFlags::OPOST|termios::OutputFlags::ONLCR);
+    tio.local_flags &= !(termios::LocalFlags::ICANON|termios::LocalFlags::ISIG|termios::LocalFlags::ECHO);
     termios::cfsetspeed(&mut tio, map_baudrate(baudrate))?;
     termios::tcsetattr(fd, termios::SetArg::TCSANOW, &tio)?;
     Ok(tty)

@@ -147,7 +147,7 @@ fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
         socket::AddressFamily::Inet,
         socket::SockType::Datagram,
         socket::SockFlag::empty(),
-        0,
+        socket::SockProtocol::Udp,
     ))?;
 
     io_err!(socket::setsockopt(fd, socket::sockopt::ReuseAddr, &true))?;
