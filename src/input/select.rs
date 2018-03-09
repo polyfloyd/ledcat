@@ -161,7 +161,6 @@ mod tests {
     use std::io::{Seek, Read, Write};
     use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
-    use nix::sys::memfd::*;
     use nix::sys::stat::Mode;
     use nix::unistd;
     use super::*;
@@ -183,8 +182,11 @@ mod tests {
         }}
     }
 
+    // FIXME: This function uses memfd, which is not available on Mac OS.
+    #[cfg(target_os = "linux")]
     fn new_iter_reader<I>(iter: I) -> Box<fs::File>
         where I: iter::Iterator<Item = u8> {
+        use nix::sys::memfd::*;
         let name = rand::thread_rng().gen_ascii_chars()
             .take(32)
             .collect::<String>();
@@ -204,6 +206,7 @@ mod tests {
         wr.flush().unwrap();
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_one_input() {
         let len = 100;
@@ -230,6 +233,7 @@ mod tests {
         });
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_multiple_inputs_order() {
         let len = 100;
@@ -253,6 +257,7 @@ mod tests {
         });
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_eof() {
         let mut reader = Reader::from(
@@ -266,6 +271,7 @@ mod tests {
         });
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     #[should_panic(expected="Timeout expired")]
     fn read_eof_retry() {
