@@ -69,4 +69,5 @@ ledcat --input /tmp/ambient /tmp/messages --linger --geometry 30 apa102 > /dev/s
 * [HexWS2811](https://github.com/brainsmoke/hex2811-penta)
 * lpd8806
 * [hub75](doc/hub75.md)
+* sk9822
 * ws2812
