@@ -13,13 +13,19 @@ Simply create a program that outputs 3 bytes of RGB for each pixel in your strip
 * [Transposition and display geometry](doc/transposition.md)
 
 ## Install
+The easiest way to install Ledcat is to [download a binary from
+Github](https://github.com/polyfloyd/ledcat/releases).
+
+### Installing from Cargo
 Install the [Rust Language](https://www.rust-lang.org/) if you have not already.
 
 Then, you can install ledcat directly using Cargo.
 ```sh
 cargo install ledcat
 ```
-Or build and install it manually:
+
+### Building Manually
+Alternatively, you can build and install Ledcat manually:
 ```sh
 git clone https://github.com/polyfloyd/ledcat.git
 cd ledcat
