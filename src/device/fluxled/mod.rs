@@ -200,7 +200,7 @@ pub fn discover(network_range: String) -> sync::mpsc::Receiver<io::Result<(net::
     rx
 }
 
-fn cidr_addresses<A1: AsRef<str>>(cidr: A1) -> Result<impl iter::Iterator<Item=net::Ipv4Addr> + Clone, Box<error::Error + Send + Sync>> {
+fn cidr_addresses<A1: AsRef<str>>(cidr: A1) -> Result<Box<iter::Iterator<Item=net::Ipv4Addr>>, Box<error::Error + Send + Sync>> {
     let mut s = cidr.as_ref().split('/');
     let addr: net::IpAddr = s.next()
         .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "missing the address of the CIDR"))?
@@ -219,7 +219,7 @@ fn cidr_addresses<A1: AsRef<str>>(cidr: A1) -> Result<impl iter::Iterator<Item=n
             let mask: u32 = mask_ip.into();
             let start = network & mask;
             let end = start | !mask;
-            Ok((start..end).map(net::Ipv4Addr::from))
+            Ok(Box::new((start..end).map(net::Ipv4Addr::from)))
         },
         (net::IpAddr::V6(_network), net::IpAddr::V6(_mask)) => unimplemented!(),
         _ => unreachable!(),
