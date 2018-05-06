@@ -6,6 +6,7 @@ use driver::*;
 use geometry::*;
 
 pub mod apa102;
+pub mod fluxled;
 pub mod generic;
 pub mod hexws2811;
 pub mod hub75;
@@ -108,6 +109,7 @@ pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, FromCommandFn)> {
     vec![
         (apa102::command(), apa102::from_command),
         (artnet::command(), artnet::from_command),
+        (fluxled::command(), fluxled::from_command),
         (generic::command(), generic::from_command),
         (hexws2811::command(), hexws2811::from_command),
         (hub75::command(), hub75::from_command),

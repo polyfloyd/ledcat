@@ -7,6 +7,7 @@ extern crate clap;
 #[macro_use]
 extern crate derive_error;
 extern crate gpio;
+extern crate net2;
 #[macro_use]
 extern crate nix;
 extern crate regex;
