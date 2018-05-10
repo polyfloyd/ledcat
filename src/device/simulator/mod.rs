@@ -46,7 +46,7 @@ impl Output for AnsiDisplay {
                 write!(buf, "\u{2580}")?;
             }
             // Reset to the default background color and jump to the next line.
-            write!(buf, "\x1b[0m\n")?;
+            writeln!(buf, "\x1b[0m")?;
         }
 
         io::stdout().write_all(&buf)

@@ -79,7 +79,7 @@ fn main() {
                 }
                 match val.parse::<Dimensions>() {
                     Ok(_) => Ok(()),
-                    Err(err) => Err(format!("{}", err)),
+                    Err(err) => Err(err.to_string()),
                 }
             })
             .help("Specify the size of the display. Can be either a number for 1D, WxH for 2D, or\

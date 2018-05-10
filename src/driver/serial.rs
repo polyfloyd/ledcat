@@ -40,7 +40,7 @@ fn map_baudrate(b: u32) -> termios::BaudRate {
         #[cfg(target_os = "linux")]
         (1_500_000, termios::BaudRate::B1500000),
         #[cfg(target_os = "linux")]
-        (1_152000, termios::BaudRate::B1152000),
+        (1_152_000, termios::BaudRate::B1152000),
         #[cfg(target_os = "linux")]
         (1_000_000, termios::BaudRate::B1000000),
         #[cfg(target_os = "linux")]

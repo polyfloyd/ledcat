@@ -15,7 +15,7 @@ impl Bulb {
         Ok(Bulb{ conn })
     }
 
-    pub fn set_constant_color(&mut self, pix: Pixel) -> io::Result<()> {
+    pub fn set_constant_color(&mut self, pix: &Pixel) -> io::Result<()> {
         // For proto:
         // -> [0x81, 0x8a, 0x8b, 0x96]
         // <- [129, 51, 35, 97, 1, 1, 0, 0, 0, 0, 4, 0, 0, 62]
@@ -26,9 +26,9 @@ impl Bulb {
 
     fn send_with_checksum(&mut self, data: &[u8]) -> io::Result<()> {
         let checksum = data.iter()
-            .fold(0, |accum, b| accum + *b as u32) as u8;
+            .fold(0, |accum, b| accum + u32::from(*b)) as u8;
         let buf: Vec<u8> = data.iter()
-            .map(|b| *b)
+            .cloned()
             .chain(iter::once(checksum))
             .collect();
         self.conn.write_all(&buf)
@@ -52,7 +52,7 @@ impl io::Write for Display {
 
     fn flush(&mut self) -> io::Result<()> {
         for (bulb, chunk) in self.bulbs.iter_mut().zip(self.buf.chunks(3)) {
-            bulb.set_constant_color(Pixel{ r: chunk[0], g: chunk[1], b: chunk[2] })?;
+            bulb.set_constant_color(&Pixel{ r: chunk[0], g: chunk[1], b: chunk[2] })?;
         }
         self.buf.clear();
         Ok(())

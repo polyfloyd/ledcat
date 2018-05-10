@@ -54,7 +54,7 @@ pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<
                 cidr.parse()
                     .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
              })
-            .unwrap_or_else(|| Cidr::default_interface());
+            .unwrap_or_else(Cidr::default_interface);
         let network_range = match network_range_rs {
             Ok(cidr) => cidr,
             Err(err) => {
@@ -179,14 +179,14 @@ struct Cidr {
 }
 
 impl Cidr {
-    fn addresses(&self) -> Box<iter::Iterator<Item=net::Ipv4Addr>> {
+    fn addresses(&self) -> impl iter::Iterator<Item=net::Ipv4Addr> {
         match (self.addr, self.mask) {
             (net::IpAddr::V4(network_ip), net::IpAddr::V4(mask_ip)) => {
                 let network: u32 = network_ip.into();
                 let mask: u32 = mask_ip.into();
                 let start = network & mask;
                 let end = start | !mask;
-                Box::new((start..end).map(net::Ipv4Addr::from))
+                (start..end).map(net::Ipv4Addr::from)
             },
             (net::IpAddr::V6(_network), net::IpAddr::V6(_mask)) => unimplemented!(),
             _ => unreachable!(),
@@ -222,7 +222,7 @@ impl Cidr {
                     SockAddr::Inet(a) => a.to_std().ip(),
                     _ => return None,
                 };
-                Some(Cidr { addr: addr, mask })
+                Some(Cidr { addr, mask })
             })
             // Pick the first interface that matches our criteria.
             .next()
@@ -252,7 +252,7 @@ impl FromStr for Cidr {
         let mask: net::IpAddr = mask_str.parse()
             .or_else(|_| -> Result<_, Box<error::Error + Send + Sync>> {
                 let bits: u32 = mask_str.parse()?;
-                Ok(net::IpAddr::V4(net::Ipv4Addr::from(!((0x80000000 >> bits - 1) - 1))))
+                Ok(net::IpAddr::V4(net::Ipv4Addr::from(!((0x8000_0000 >> (bits - 1)) - 1))))
             })?;
         Ok(Cidr{ addr, mask })
     }

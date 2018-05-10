@@ -30,9 +30,9 @@ pub struct Correction {
 impl Correction {
     pub fn none() -> Correction {
         Correction {
-            r: (0..256).map(|i| i as u8).collect(),
-            g: (0..256).map(|i| i as u8).collect(),
-            b: (0..256).map(|i| i as u8).collect(),
+            r: (0..=255).collect(),
+            g: (0..=255).collect(),
+            b: (0..=255).collect(),
         }
     }
 
