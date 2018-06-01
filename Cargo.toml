@@ -17,16 +17,15 @@ default = []
 ci = []
 
 [dependencies]
-byteorder = "1.2.2"
+byteorder = "1.2.3"
 clap = "2.31.2"
-clippy = { version = "0.0.*", optional = true }
 derive-error = "0.0.4"
 gpio = { path = "components/gpio", version = "0.3.0" }
-net2 = "0.2.31"
+net2 = "0.2.32"
 nix = "0.10.0"
-regex = "0.2.10"
+regex = "1.0.0"
 
 [dev-dependencies]
-assert_cli = "0.5.4"
-rand = "0.4.2"
-tempdir = "0.3.6"
+assert_cli = "0.6.1"
+rand = "0.5.0"
+tempdir = "0.3.7"

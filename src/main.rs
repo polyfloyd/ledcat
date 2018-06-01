@@ -1,7 +1,3 @@
-#![cfg_attr(feature="clippy", feature(plugin))]
-#![cfg_attr(feature="clippy", plugin(clippy))]
-#![cfg_attr(feature="clippy", allow(type_complexity))]
-
 extern crate byteorder;
 extern crate clap;
 #[macro_use]
