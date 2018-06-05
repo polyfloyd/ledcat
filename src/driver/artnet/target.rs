@@ -8,7 +8,7 @@ use std::thread;
 use std::time;
 
 
-pub trait Target {
+pub trait Target: Send {
     fn addresses(&self) -> Cow<[net::SocketAddr]>;
 }
 

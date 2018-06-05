@@ -12,6 +12,8 @@ pub struct LedMatrix {
     height: usize,
 }
 
+unsafe impl Send for LedMatrix { }
+
 impl Output for LedMatrix {
     fn color_correction(&self) -> Correction {
         Correction::none()

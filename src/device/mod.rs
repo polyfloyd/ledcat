@@ -1,5 +1,5 @@
 use std::io;
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 use clap;
 use color::*;
 use driver::*;
@@ -22,15 +22,15 @@ pub mod ws2812;
 ///
 /// It is also possible to compose an output from a Device and an `io::Write` to allow reuse of
 /// driver code.
-pub trait Output {
+pub trait Output: Send {
     fn color_correction(&self) -> Correction;
 
     fn output_frame(&mut self, &[Pixel]) -> io::Result<()>;
 }
 
 impl<D, W> Output for (D, W)
-    where D: Device,
-          W: io::Write {
+    where D: Device + Send,
+          W: io::Write + Send {
     fn color_correction(&self) -> Correction {
         self.0.color_correction()
     }
@@ -40,12 +40,22 @@ impl<D, W> Output for (D, W)
     }
 }
 
+impl Output for Box<Output> {
+    fn color_correction(&self) -> Correction {
+        self.deref().color_correction()
+    }
+
+    fn output_frame(&mut self, pixels: &[Pixel]) -> io::Result<()> {
+        self.deref_mut().output_frame(pixels)
+    }
+}
+
 
 /// The Device is half of an output system and represents the wire format of some physical device.
 ///
 /// The other half of the output is formed by the driver modules which handle the actual IO to the
 /// device.
-pub trait Device {
+pub trait Device: Send {
     fn color_correction(&self) -> Correction;
     fn write_frame(&self, &mut io::Write, &[Pixel]) -> io::Result<()>;
 

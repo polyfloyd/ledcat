@@ -13,9 +13,9 @@ use std::collections;
 use std::env;
 use std::fs;
 use std::io;
-use std::ops::DerefMut;
 use std::path;
 use std::process;
+use std::sync::mpsc;
 use std::thread;
 use std::time;
 use ::color::*;
@@ -161,7 +161,7 @@ fn main() {
             }.and_then(|v| v.parse().ok())
         },
     };
-    let mut output: Box<Output> = {
+    let output: Box<Output> = {
         let result = device_constructors[sub_name](sub_matches.unwrap(), &gargs);
         let from_command = match result {
             Ok(v) => v,
@@ -187,7 +187,7 @@ fn main() {
                         return;
                     }
                 };
-                let output: Box<io::Write> = match driver_name.as_str() {
+                let output: Box<io::Write + Send> = match driver_name.as_str() {
                     "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
                     "spidev" => {
                         Box::new(spidev::open(&output_file, dev.borrow()).unwrap())
@@ -262,61 +262,105 @@ fn main() {
                 .unwrap_or(100);
             time::Duration::new(0, ms * 1_000_000)
         });
-    let mut input = select::Reader::from_files(files, dimensions.size() * 3, input_eof, Some(clear_timeout)).unwrap();
+    let input = select::Reader::from_files(files, dimensions.size() * 3, input_eof, Some(clear_timeout)).unwrap();
 
-    loop {
-        let start = time::Instant::now();
-        if pipe_frame(&mut input, output.deref_mut(), &transposition, &color_correction, dim).is_err() {
-            break;
-        }
-        if single_frame {
-            break;
-        }
-        if let Some(interval) = frame_interval {
-            let el = start.elapsed();
-            if interval >= el {
-                thread::sleep(interval - el);
-            }
-        }
-    }
+    let _ = pipe_frames(
+        input,
+        output,
+        transposition,
+        color_correction,
+        dim,
+        single_frame,
+        frame_interval
+    );
 }
 
-fn pipe_frame(mut input: impl io::Read,
-                 dev: &mut Output,
-                 transposition: &[usize],
-                 correction: &Correction,
-                 dim: u8)
-                 -> io::Result<()> {
-    // Read a full frame into a buffer. This prevents half frames being written to a
-    // potentially timing sensitive output if the input blocks and lets us apply the
-    // transpositions.
-    let mut bin_buffer = vec![0; transposition.len() * 3];
-    input.read_exact(&mut bin_buffer)?;
-
-    let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; transposition.len()];
-    for (transpose_mapped, bin) in transposition.iter().zip(bin_buffer.chunks(3)) {
-        // Load the pixel.
-        let pix = Pixel {
-            r: bin[0],
-            g: bin[1],
-            b: bin[2],
-        };
-        // Apply dimming.
-        let pix = {
-            let dim16 = u16::from(dim);
-            Pixel {
-                r: ((u16::from(pix.r) * dim16) / 0xff) as u8,
-                g: ((u16::from(pix.g) * dim16) / 0xff) as u8,
-                b: ((u16::from(pix.b) * dim16) / 0xff) as u8,
+fn pipe_frames(mut input: impl io::Read + Send + 'static,
+               mut dev: impl Output + 'static,
+               transposition: Vec<usize>,
+               correction: Correction,
+               dim: u8,
+               single_frame: bool,
+               frame_interval: Option<time::Duration>)
+               -> io::Result<()> {
+    let (err_tx, err_rx) = mpsc::channel();
+    macro_rules! try_or_send {
+        ($tx:expr, $expression:expr) => (
+            match $expression {
+                Ok(val)  => val,
+                Err(err) => {
+                    $tx.send(Err(err)).unwrap();
+                    return;
+                }
             }
-        };
-        // Apply color correction.
-        let pix = correction.correct(pix);
-        // Apply transposition and store the pixel in the output buffer.
-        buffer[*transpose_mapped] = pix;
+        )
     }
-    dev.output_frame(&buffer)?;
-    Ok(())
+
+    let local_err_tx = err_tx.clone();
+    let num_pixels = transposition.len();
+    let (input_tx, input_rx) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        loop {
+            // Read a full frame into a buffer. This prevents half frames being written to a
+            // potentially timing sensitive output if the input blocks and lets us apply the
+            // transpositions.
+            let mut bin_buffer = vec![0; num_pixels * 3];
+            try_or_send!(local_err_tx, input.read_exact(&mut bin_buffer));
+            input_tx.send(bin_buffer).unwrap();
+        }
+    });
+
+    let (map_tx, map_rx) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        loop {
+            let bin_buffer = input_rx.recv().unwrap();
+            let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; transposition.len()];
+            for (transpose_mapped, bin) in transposition.iter().zip(bin_buffer.chunks(3)) {
+                // Load the pixel.
+                let pix = Pixel {
+                    r: bin[0],
+                    g: bin[1],
+                    b: bin[2],
+                };
+                // Apply dimming.
+                let pix = {
+                    let dim16 = u16::from(dim);
+                    Pixel {
+                        r: ((u16::from(pix.r) * dim16) / 0xff) as u8,
+                        g: ((u16::from(pix.g) * dim16) / 0xff) as u8,
+                        b: ((u16::from(pix.b) * dim16) / 0xff) as u8,
+                    }
+                };
+                // Apply color correction.
+                let pix = correction.correct(pix);
+                // Apply transposition and store the pixel in the output buffer.
+                buffer[*transpose_mapped] = pix;
+            }
+            map_tx.send(buffer).unwrap();
+        }
+    });
+
+    let local_err_tx = err_tx.clone();
+    thread::spawn(move || {
+        loop {
+            let start = time::Instant::now();
+
+            let buffer = map_rx.recv().unwrap();
+            try_or_send!(local_err_tx, dev.output_frame(&buffer));
+            if single_frame {
+                break;
+            }
+
+            if let Some(interval) = frame_interval {
+                let el = start.elapsed();
+                if interval >= el {
+                    thread::sleep(interval - el);
+                }
+            }
+        }
+    });
+
+    err_rx.recv().unwrap()
 }
 
 fn transposition_table(dimensions: &Dimensions,
