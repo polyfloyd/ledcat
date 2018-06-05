@@ -11,9 +11,10 @@ impl Device for Generic {
     }
 
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
-        for pix in pixels.iter() {
-            writer.write_all(&[pix.r, pix.g, pix.b])?;
-        }
+        let buf: Vec<u8> = pixels.iter()
+            .flat_map(|pix| vec![pix.r, pix.g, pix.b])
+            .collect();
+        writer.write_all(&buf)?;
         Ok(())
     }
 }
