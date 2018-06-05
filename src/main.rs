@@ -281,29 +281,39 @@ fn main() {
     }
 }
 
-fn pipe_frame<R>(mut input: R,
+fn pipe_frame(mut input: impl io::Read,
                  dev: &mut Output,
                  transposition: &[usize],
                  correction: &Correction,
                  dim: u8)
-                 -> io::Result<()>
-                 where R: io::Read {
+                 -> io::Result<()> {
     // Read a full frame into a buffer. This prevents half frames being written to a
     // potentially timing sensitive output if the input blocks and lets us apply the
     // transpositions.
+    let mut bin_buffer = vec![0; transposition.len() * 3];
+    input.read_exact(&mut bin_buffer)?;
+
     let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; transposition.len()];
-    for transpose_mapped in transposition {
-        let pix_in = Pixel::read_rgb24(&mut input)?;
-        let pix_dimmed = {
+    for (transpose_mapped, bin) in transposition.iter().zip(bin_buffer.chunks(3)) {
+        // Load the pixel.
+        let pix = Pixel {
+            r: bin[0],
+            g: bin[1],
+            b: bin[2],
+        };
+        // Apply dimming.
+        let pix = {
             let dim16 = u16::from(dim);
             Pixel {
-                r: ((u16::from(pix_in.r) * dim16) / 0xff) as u8,
-                g: ((u16::from(pix_in.g) * dim16) / 0xff) as u8,
-                b: ((u16::from(pix_in.b) * dim16) / 0xff) as u8,
+                r: ((u16::from(pix.r) * dim16) / 0xff) as u8,
+                g: ((u16::from(pix.g) * dim16) / 0xff) as u8,
+                b: ((u16::from(pix.b) * dim16) / 0xff) as u8,
             }
         };
-        let pix_corrected = correction.correct(&pix_dimmed);
-        buffer[*transpose_mapped] = pix_corrected;
+        // Apply color correction.
+        let pix = correction.correct(pix);
+        // Apply transposition and store the pixel in the output buffer.
+        buffer[*transpose_mapped] = pix;
     }
     dev.output_frame(&buffer)?;
     Ok(())
