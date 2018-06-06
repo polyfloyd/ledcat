@@ -1,5 +1,6 @@
 use std::process::Command;
 use std::path::*;
+use std::env;
 
 // The RPI LED Matrix library is stored using a subtree, see:
 //   https://www.atlassian.com/blog/git/alternatives-to-git-submodule-git-subtree
@@ -8,6 +9,10 @@ use std::path::*;
 //   git subtree pull --prefix components/rpi-led-matrix https://github.com/hzeller/rpi-rgb-led-matrix.git master --squash
 
 fn main () {
+    if env::var("CARGO_FEATURE_CI").is_ok() {
+        return;
+    }
+
     Command::new("make")
         .current_dir("./components/rpi-rgb-led-matrix")
         .status().unwrap();
@@ -20,4 +25,3 @@ fn main () {
     println!("cargo:rustc-link-lib=static=rgbmatrix");
     println!("cargo:rustc-link-lib=dylib=stdc++");
 }
-
