@@ -42,7 +42,7 @@ impl SysFsGpioOutput {
     /// Open an already exported GPIO port.
     /// Like `new`, but does not export the port.
     pub fn exported_new(gpio_num: u16) -> io::Result<SysFsGpioOutput> {
-        /// set to output direction
+        // set to output direction
         fs::File::create(format!("/sys/class/gpio/gpio{}/direction", gpio_num))?
             .write_all(b"out")?;
 
