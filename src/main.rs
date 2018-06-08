@@ -307,13 +307,16 @@ fn pipe_frames(mut input: impl io::Read + Send + 'static,
             let mut bin_buffer = vec![0; num_pixels * 3];
             try_or_send!(local_err_tx, input.read_exact(&mut bin_buffer));
             input_tx.send(bin_buffer).unwrap();
+            if single_frame {
+                break;
+            }
         }
+
     });
 
     let (map_tx, map_rx) = mpsc::sync_channel(1);
     thread::spawn(move || {
-        loop {
-            let bin_buffer = input_rx.recv().unwrap();
+        for bin_buffer in input_rx.into_iter() {
             let mut buffer = vec![Pixel { r: 0, g: 0, b: 0 }; transposition.len()];
             for (transpose_mapped, bin) in transposition.iter().zip(bin_buffer.chunks(3)) {
                 // Load the pixel.
@@ -340,16 +343,15 @@ fn pipe_frames(mut input: impl io::Read + Send + 'static,
         }
     });
 
-    let local_err_tx = err_tx.clone();
     thread::spawn(move || {
         loop {
             let start = time::Instant::now();
 
-            let buffer = map_rx.recv().unwrap();
-            try_or_send!(local_err_tx, dev.output_frame(&buffer));
-            if single_frame {
-                break;
-            }
+            let buffer = match map_rx.recv() {
+                Ok(v) => v,
+                Err(_) => break,
+            };
+            try_or_send!(err_tx, dev.output_frame(&buffer));
 
             if let Some(interval) = frame_interval {
                 let el = start.elapsed();
@@ -360,7 +362,10 @@ fn pipe_frames(mut input: impl io::Read + Send + 'static,
         }
     });
 
-    err_rx.recv().unwrap()
+    match err_rx.recv() {
+        Ok(err) => err,
+        Err(_) => Ok(()),
+    }
 }
 
 fn transposition_table(dimensions: &Dimensions,
