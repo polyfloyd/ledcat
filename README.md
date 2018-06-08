@@ -16,6 +16,8 @@ Simply create a program that outputs 3 bytes of RGB for each pixel in your strip
 The easiest way to install Ledcat is to [download a binary from
 Github](https://github.com/polyfloyd/ledcat/releases).
 
+*Note: Hzeller's LED Matrix driver is not available from CI builds.*
+
 ### Installing from Cargo
 Install the [Rust Language](https://www.rust-lang.org/) if you have not already.
 
@@ -77,3 +79,4 @@ ledcat --input /tmp/ambient /tmp/messages --linger --geometry 30 apa102 > /dev/s
 * [hub75](doc/hub75.md)
 * sk9822
 * ws2812
+* [LED Matrices on Raspberry Pi's](https://github.com/hzeller/rpi-rgb-led-matrix) (ARM+Linux only)
