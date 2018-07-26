@@ -73,6 +73,7 @@ ledcat --input /tmp/ambient /tmp/messages --linger --geometry 30 apa102 > /dev/s
 * Artnet DMX
 
 ### Supported Device Types:
+* show (emulates a LED bar in the terminal)
 * apa102
 * [HexWS2811](https://github.com/brainsmoke/hex2811-penta)
 * lpd8806
