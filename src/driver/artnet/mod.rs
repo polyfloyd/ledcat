@@ -55,7 +55,7 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         return Ok(FromCommand::SubcommandHandled);
     }
 
-    let dev = Box::new(generic::Generic {});
+    let dev = Box::new(generic::Generic { format: generic::Format::RGB24 });
     let artnet_target: Box<Target> = if args.is_present("broadcast") {
         Box::new(Broadcast{})
     } else if let Some(list_path) = args.value_of("target-list") {

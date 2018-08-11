@@ -76,7 +76,7 @@ pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<
         })
         .collect();
 
-    let dev = Box::new(generic::Generic{});
+    let dev = Box::new(generic::Generic{ format: generic::Format::RGB24 });
     let output = Display {
         bulbs,
         buf: Vec::new(),
