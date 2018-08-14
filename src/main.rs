@@ -179,14 +179,8 @@ fn main() {
 
                 let driver_name = matches.value_of("driver")
                     .map(|s: &str| s.to_string())
-                    .or_else(|| driver::detect(&output_file));
-                let driver_name = match driver_name {
-                    Some(n) => n,
-                    None => {
-                        eprintln!("Unable to determine the driver to use. Please set one using --driver.");
-                        return;
-                    }
-                };
+                    .or_else(|| driver::detect(&output_file))
+                    .unwrap_or_else(|| "none".to_string());
                 let output: Box<io::Write + Send> = match driver_name.as_str() {
                     "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
                     "spidev" => {
