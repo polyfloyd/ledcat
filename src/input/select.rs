@@ -165,6 +165,7 @@ mod tests {
     use nix::unistd;
     use super::*;
     use self::rand::Rng;
+    use self::rand::distributions::Alphanumeric;
 
     macro_rules! timeout {
         ($timeout:expr, $block:block) => {{
@@ -188,7 +189,7 @@ mod tests {
     fn new_iter_reader<I>(iter: I) -> Box<fs::File>
         where I: iter::Iterator<Item = u8> {
         use nix::sys::memfd::*;
-        let name = rand::thread_rng().gen_ascii_chars()
+        let name = rand::thread_rng().sample_iter(&Alphanumeric)
             .take(32)
             .collect::<String>();
         let cname = ffi::CString::new(name).unwrap();
