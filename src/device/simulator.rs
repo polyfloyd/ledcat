@@ -35,14 +35,14 @@ impl Output for AnsiDisplay {
             for x in 0..self.width {
                 let pix_hi = &frame[y * 2 * self.width + x];
                 let pix_lo = frame.get((y * 2 + 1) * self.width + x);
-                // Set the foreground color.
-                write!(buf, "\x1b[38;2;{};{};{}m", pix_hi.r, pix_hi.g, pix_hi.b)?;
                 // Set the background color.
                 if let Some(pix_lo) = pix_lo {
                     write!(buf, "\x1b[48;2;{};{};{}m", pix_lo.r, pix_lo.g, pix_lo.b)?;
                 } else {
                     write!(buf, "\x1b[48;2;0m")?;
                 }
+                // Set the foreground color.
+                write!(buf, "\x1b[38;2;{};{};{}m", pix_hi.r, pix_hi.g, pix_hi.b)?;
                 write!(buf, "\u{2580}")?;
             }
             // Reset to the default background color and jump to the next line.
