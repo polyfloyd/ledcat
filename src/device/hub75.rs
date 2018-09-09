@@ -1,12 +1,11 @@
+use clap;
+use color::*;
+use device::*;
+use gpio::sysfs::SysFsGpioOutput;
+use gpio::GpioOut;
 use std::io;
 use std::sync::mpsc;
 use std::thread;
-use color::*;
-use device::*;
-use clap;
-use gpio::GpioOut;
-use gpio::sysfs::SysFsGpioOutput;
-
 
 struct Worker {
     width: usize,
@@ -31,7 +30,7 @@ impl Worker {
                 Ok(frame) => {
                     assert_eq!(self.width * self.height, frame.len());
                     self.cur_frame = frame;
-                },
+                }
                 Err(mpsc::TryRecvError::Empty) => (),
                 Err(_) => break,
             };
@@ -149,18 +148,16 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
 pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
     let (width, height) = gargs.dimensions_2d()?;
 
-    let pwm_cycles = args.value_of("pwm").unwrap()
-        .parse().unwrap();
+    let pwm_cycles = args.value_of("pwm").unwrap().parse().unwrap();
     let pins = |name: &str| -> io::Result<Vec<SysFsGpioOutput>> {
-        args.value_of(name).unwrap()
+        args.value_of(name)
+            .unwrap()
             .split(',')
             .map(|s| s.parse().unwrap())
             .map(SysFsGpioOutput::new)
             .collect()
     };
-    let pin = |name: &str| -> io::Result<SysFsGpioOutput> {
-        Ok(pins(name)?.pop().unwrap())
-    };
+    let pin = |name: &str| -> io::Result<SysFsGpioOutput> { Ok(pins(name)?.pop().unwrap()) };
 
     let (frame_tx, frame_rx) = mpsc::sync_channel(0);
     let (err_tx, err_rx) = mpsc::channel();
@@ -175,7 +172,10 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         level_select: {
             let p = pins("level-select")?;
             if height % (1 << p.len()) != 0 {
-                return Err(io::Error::new(io::ErrorKind::Other, "The height must be a multiple of 2^len(level-select-pins)"));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "The height must be a multiple of 2^len(level-select-pins)",
+                ));
             }
             p
         },
@@ -184,9 +184,14 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
             let g = pins("green")?;
             let b = pins("blue")?;
             if r.len() != g.len() || g.len() != b.len() {
-                return Err(io::Error::new(io::ErrorKind::Other, "The number of red, green and blue pins must be all equal"));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "The number of red, green and blue pins must be all equal",
+                ));
             }
-            r.into_iter().zip(g).zip(b)
+            r.into_iter()
+                .zip(g)
+                .zip(b)
                 .map(|a| [(a.0).0, (a.0).1, a.1])
                 .collect()
         },

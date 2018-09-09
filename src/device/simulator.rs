@@ -1,7 +1,6 @@
-use std::io::Write;
 use clap;
-use ::device::*;
-
+use device::*;
+use std::io::Write;
 
 pub struct AnsiDisplay {
     width: usize,
@@ -54,8 +53,7 @@ impl Output for AnsiDisplay {
 }
 
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("show")
-        .about("Visualize 2D frames using a text based display")
+    clap::SubCommand::with_name("show").about("Visualize 2D frames using a text based display")
 }
 
 pub fn from_command(_: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {

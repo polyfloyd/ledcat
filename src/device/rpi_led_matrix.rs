@@ -1,9 +1,8 @@
+use clap;
+use device::*;
 use std::ffi::CString;
 use std::mem;
 use std::ptr;
-use clap;
-use ::device::*;
-
 
 pub struct LedMatrix {
     led_matrix: *mut RGBLedMatrix,
@@ -12,7 +11,7 @@ pub struct LedMatrix {
     height: usize,
 }
 
-unsafe impl Send for LedMatrix { }
+unsafe impl Send for LedMatrix {}
 
 impl Output for LedMatrix {
     fn color_correction(&self) -> Correction {
@@ -25,14 +24,7 @@ impl Output for LedMatrix {
             for x in 0..self.width {
                 let pix = &frame[y * self.width + x];
                 unsafe {
-                    led_canvas_set_pixel(
-                        self.backbuffer,
-                        x as i32,
-                        y as i32,
-                        pix.r,
-                        pix.g,
-                        pix.b,
-                    );
+                    led_canvas_set_pixel(self.backbuffer, x as i32, y as i32, pix.r, pix.g, pix.b);
                 }
             }
         }
@@ -127,22 +119,21 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         let mut options: RGBLedMatrixOptions = mem::zeroed();
 
         let (width, height) = gargs.dimensions_2d()?;
-        let chain_length = args.value_of("chain")
-            .map(|s| s.parse().unwrap());
-        let cols = args.value_of("cols")
-            .map(|s| s.parse().unwrap());
-        let parallel = args.value_of("parallel")
-            .map(|s| s.parse().unwrap());
-        let rows = args.value_of("rows")
-            .map(|s| s.parse().unwrap());
+        let chain_length = args.value_of("chain").map(|s| s.parse().unwrap());
+        let cols = args.value_of("cols").map(|s| s.parse().unwrap());
+        let parallel = args.value_of("parallel").map(|s| s.parse().unwrap());
+        let rows = args.value_of("rows").map(|s| s.parse().unwrap());
         // X = cols * chain_length
         let (calc_cols, calc_chain_length) = match (cols, chain_length) {
             (Some(c), Some(l)) => (c, l),
             (Some(c), None) => (c, width as i32 / c),
             (None, Some(l)) => (width as i32 / l, l),
             (None, None) => {
-                return Err(io::Error::new(io::ErrorKind::Other, "Either --chain or --cols must be set"));
-            },
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Either --chain or --cols must be set",
+                ));
+            }
         };
         options.cols = calc_cols;
         options.chain_length = calc_chain_length;
@@ -152,24 +143,30 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
             (Some(r), None) => (r, height as i32 / r),
             (None, Some(p)) => (height as i32 / p, p),
             (None, None) => {
-                return Err(io::Error::new(io::ErrorKind::Other, "Either --rows or --parallel must be set"));
-            },
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Either --rows or --parallel must be set",
+                ));
+            }
         };
         options.rows = calc_rows;
         options.parallel = calc_parallel;
 
-        let hwmap = args.value_of("hardware-mapping")
+        let hwmap = args
+            .value_of("hardware-mapping")
             .map(|s| CString::new(s).unwrap());
         if let Some(s) = &hwmap {
             options.hardware_mapping = s.as_ptr() as _;
         }
         if let Some(v) = args.value_of("pwm-bits") {
-            let b = v.parse()
+            let b = v
+                .parse()
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
             options.pwm_bits = b;
         }
         if let Some(v) = args.value_of("pwm-lsb-nanoseconds") {
-            let ns = v.parse()
+            let ns = v
+                .parse()
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
             options.pwm_lsb_nanoseconds = ns;
         }
@@ -201,7 +198,8 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
                 _ => unreachable!(),
             };
         }
-        let rgbseq = args.value_of("rgb-sequence")
+        let rgbseq = args
+            .value_of("rgb-sequence")
             .map(|s| CString::new(s).unwrap());
         if let Some(s) = &rgbseq {
             options.led_rgb_sequence = s.as_ptr() as _;
@@ -209,7 +207,10 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
 
         let led_matrix = led_matrix_create_from_options(&options, &0, ptr::null());
         if led_matrix.is_null() {
-            return Err(io::Error::new(io::ErrorKind::Other, "could not initialize LED Matrix driver"));
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "could not initialize LED Matrix driver",
+            ));
         }
         let backbuffer = led_matrix_create_offscreen_canvas(led_matrix);
         Ok(FromCommand::Output(Box::new(LedMatrix {
@@ -243,17 +244,23 @@ struct RGBLedMatrixOptions {
     // inverse_colors
 }
 
-enum RGBLedMatrix { }
+enum RGBLedMatrix {}
 
-enum LedCanvas { }
+enum LedCanvas {}
 
 extern "C" {
-    fn led_matrix_create_from_options(options: *const RGBLedMatrixOptions, argc: *const i32, argv:
-                                      *const *mut *mut u8) -> *mut RGBLedMatrix;
+    fn led_matrix_create_from_options(
+        options: *const RGBLedMatrixOptions,
+        argc: *const i32,
+        argv: *const *mut *mut u8,
+    ) -> *mut RGBLedMatrix;
     fn led_matrix_delete(matrix: *mut RGBLedMatrix);
     fn led_matrix_get_canvas(matrix: *mut RGBLedMatrix) -> *mut LedCanvas;
     fn led_matrix_create_offscreen_canvas(matrix: *mut RGBLedMatrix) -> *mut LedCanvas;
-    fn led_matrix_swap_on_vsync(matrix: *mut RGBLedMatrix, canvas: *mut LedCanvas) -> *mut LedCanvas;
+    fn led_matrix_swap_on_vsync(
+        matrix: *mut RGBLedMatrix,
+        canvas: *mut LedCanvas,
+    ) -> *mut LedCanvas;
     fn led_canvas_set_pixel(canvas: *mut LedCanvas, x: i32, y: i32, r: u8, g: u8, b: u8);
     fn led_canvas_clear(canvas: *mut LedCanvas);
 }

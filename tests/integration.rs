@@ -6,8 +6,10 @@ extern crate assert_cli;
 fn calling_without_args() {
     assert_cli::Assert::main_binary()
         .fails()
-        .stderr().contains("USAGE")
-        .stdout().is("")
+        .stderr()
+        .contains("USAGE")
+        .stdout()
+        .is("")
         .unwrap();
 }
 

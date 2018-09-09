@@ -1,10 +1,9 @@
+use device::*;
+use driver;
+use regex;
 use std::fs;
 use std::os::unix::io::AsRawFd;
 use std::path;
-use regex;
-use device::*;
-use driver;
-
 
 ioctl_write_buf!(spi_ioc_wr_mode, b'k', 1, u8);
 ioctl_write_buf!(spi_ioc_wr_lsb_first, b'k', 2, u8);
@@ -29,7 +28,8 @@ pub fn open(path: &path::Path, dev: &Device) -> Result<fs::File, driver::Error> 
     let spidev = fs::OpenOptions::new().write(true).open(path)?;
     let fd = spidev.as_raw_fd();
 
-    let conf = dev.spidev_config()
+    let conf = dev
+        .spidev_config()
         .ok_or(driver::Error::DeviceNotSupported)?;
 
     let lsb_first: u8 = match conf.first_bit {
@@ -46,9 +46,10 @@ pub fn open(path: &path::Path, dev: &Device) -> Result<fs::File, driver::Error> 
 }
 
 pub fn is_spidev(path: &path::Path) -> bool {
-    let devs = regex::RegexSet::new(&[r"^/dev/spidev\d+\.\d+$",
-                                      r"^/sys/devices/.+/spi\d\.\d$",
-                                      r"^/sys/class/devices/.+/spi\d\.\d$"])
-        .unwrap();
+    let devs = regex::RegexSet::new(&[
+        r"^/dev/spidev\d+\.\d+$",
+        r"^/sys/devices/.+/spi\d\.\d$",
+        r"^/sys/class/devices/.+/spi\d\.\d$",
+    ]).unwrap();
     devs.is_match(path.to_str().unwrap())
 }

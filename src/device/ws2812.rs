@@ -1,12 +1,11 @@
-use std::io;
-use std::thread;
-use std::time;
 use clap;
 use color::*;
 use device::*;
+use std::io;
+use std::thread;
+use std::time;
 
-
-pub struct Ws2812 { }
+pub struct Ws2812 {}
 
 impl Device for Ws2812 {
     fn color_correction(&self) -> Correction {
@@ -16,7 +15,7 @@ impl Device for Ws2812 {
     fn spidev_config(&self) -> Option<spidev::Config> {
         Some(spidev::Config {
             clock_polarity: 0, // N/A: The WS2812 does not require a clock.
-            clock_phase: 0, // N/A
+            clock_phase: 0,    // N/A
             first_bit: spidev::FirstBit::MSB,
             speed_hz: 2_400_000, // 1s / 1.25µs * 3 = 2.4MHz
         })
@@ -29,8 +28,9 @@ impl Device for Ws2812 {
         // period is 2/3rds high, the bit is 1.
         // A single period is transmitted as 3 SPI bits of which the second bit determines the
         // duty cycle.
-        let buf: Vec<u8> = pixels.iter()
-            .flat_map(|pix| vec![ pix.g, pix.r, pix.b ])
+        let buf: Vec<u8> = pixels
+            .iter()
+            .flat_map(|pix| vec![pix.g, pix.r, pix.b])
             .flat_map(|b| {
                 let mut obits: u32 = 0;
                 for i in 0..8 {
@@ -55,5 +55,5 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
 }
 
 pub fn from_command(_: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
-    Ok(FromCommand::Device(Box::new(Ws2812 { })))
+    Ok(FromCommand::Device(Box::new(Ws2812 {})))
 }

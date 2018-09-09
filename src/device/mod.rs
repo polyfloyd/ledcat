@@ -1,9 +1,9 @@
-use std::io;
-use std::ops::{Deref, DerefMut};
 use clap;
 use color::*;
 use driver::*;
 use geometry::*;
+use std::io;
+use std::ops::{Deref, DerefMut};
 
 pub mod apa102;
 pub mod fluxled;
@@ -17,7 +17,6 @@ pub mod simulator;
 pub mod sk9822;
 pub mod ws2812;
 
-
 /// An output represents the device that is used as output.
 ///
 /// It is also possible to compose an output from a Device and an `io::Write` to allow reuse of
@@ -29,8 +28,10 @@ pub trait Output: Send {
 }
 
 impl<D, W> Output for (D, W)
-    where D: Device + Send,
-          W: io::Write + Send {
+where
+    D: Device + Send,
+    W: io::Write + Send,
+{
     fn color_correction(&self) -> Correction {
         self.0.color_correction()
     }
@@ -49,7 +50,6 @@ impl Output for Box<Output> {
         self.deref_mut().output_frame(pixels)
     }
 }
-
 
 /// The Device is half of an output system and represents the wire format of some physical device.
 ///
@@ -74,7 +74,9 @@ pub trait Device: Send {
 }
 
 impl<T> Device for Box<T>
-    where T: Device + ?Sized {
+where
+    T: Device + ?Sized,
+{
     fn color_correction(&self) -> Correction {
         self.deref().color_correction()
     }
@@ -84,21 +86,22 @@ impl<T> Device for Box<T>
     }
 }
 
-
 pub struct GlobalArgs {
     pub dimensions: Option<Dimensions>,
 }
 
 impl GlobalArgs {
     pub fn dimensions(&self) -> io::Result<Dimensions> {
-        self.dimensions.ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Please set the frame size"))
+        self.dimensions
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Please set the frame size"))
     }
 
     pub fn dimensions_2d(&self) -> io::Result<(usize, usize)> {
         match self.dimensions()? {
-            Dimensions::One(_) => {
-                Err(io::Error::new(io::ErrorKind::Other, "This device requires 2D geometry"))
-            },
+            Dimensions::One(_) => Err(io::Error::new(
+                io::ErrorKind::Other,
+                "This device requires 2D geometry",
+            )),
             Dimensions::Two(w, h) => Ok((w, h)),
         }
     }

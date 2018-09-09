@@ -1,17 +1,14 @@
+use nix;
 use std::fs;
 use std::io;
 use std::path;
-use nix;
 
 pub mod artnet;
 pub mod serial;
 pub mod spidev;
 
-
-const DRIVER_DETECTORS: &[(&str, fn(&path::Path) -> bool)] = &[
-    ("serial", serial::is_serial),
-    ("spidev", spidev::is_spidev),
-];
+const DRIVER_DETECTORS: &[(&str, fn(&path::Path) -> bool)] =
+    &[("serial", serial::is_serial), ("spidev", spidev::is_spidev)];
 
 pub fn detect<P: AsRef<path::Path>>(file: P) -> Option<String> {
     let real_file = match read_link_recursive(file) {

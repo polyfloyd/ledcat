@@ -1,5 +1,11 @@
 mod bulb;
 
+use self::bulb::*;
+use clap;
+use device::*;
+use net2;
+use net2::unix::UnixUdpBuilderExt;
+use nix;
 use std::collections;
 use std::error;
 use std::io::{self, Write};
@@ -9,12 +15,6 @@ use std::str::FromStr;
 use std::sync;
 use std::thread;
 use std::time;
-use clap;
-use net2::unix::UnixUdpBuilderExt;
-use net2;
-use nix;
-use ::device::*;
-use self::bulb::*;
 
 const DISCOVERY_PORT: u16 = 48899;
 const DISCOVERY_MAGIC: &[u8] = b"HF-A11ASSISTHREAD";
@@ -22,46 +22,56 @@ const DISCOVERY_MAGIC: &[u8] = b"HF-A11ASSISTHREAD";
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
     clap::SubCommand::with_name("fluxled")
         .about("TODO")
-        .arg(clap::Arg::with_name("target")
-            .short("t")
-            .long("target")
-            .takes_value(true)
-            .min_values(1)
-            .multiple(true)
-            .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(format!("{} ({})", err, addr)),
-            })
-            .conflicts_with_all(&["discover"])
-            .help("One or more target IP addresses"))
-        .arg(clap::Arg::with_name("discover")
-            .short("d")
-            .long("discover")
-            .conflicts_with_all(&["target"])
-            .help("Discover Flux-LED nodes"))
-        .arg(clap::Arg::with_name("network")
-            .short("n")
-            .long("net")
-            .takes_value(true)
-            .requires_all(&["discover"])
-            .help("The network range of where to look for devices in CIDR format"))
+        .arg(
+            clap::Arg::with_name("target")
+                .short("t")
+                .long("target")
+                .takes_value(true)
+                .min_values(1)
+                .multiple(true)
+                .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(format!("{} ({})", err, addr)),
+                })
+                .conflicts_with_all(&["discover"])
+                .help("One or more target IP addresses"),
+        )
+        .arg(
+            clap::Arg::with_name("discover")
+                .short("d")
+                .long("discover")
+                .conflicts_with_all(&["target"])
+                .help("Discover Flux-LED nodes"),
+        )
+        .arg(
+            clap::Arg::with_name("network")
+                .short("n")
+                .long("net")
+                .takes_value(true)
+                .requires_all(&["discover"])
+                .help("The network range of where to look for devices in CIDR format"),
+        )
 }
 
 pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<FromCommand> {
     if args.is_present("discover") {
-        let network_range_rs = args.value_of("network")
+        let network_range_rs = args
+            .value_of("network")
             .map(|cidr| {
                 cidr.parse()
                     .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-             })
+            })
             .unwrap_or_else(Cidr::default_interface);
         let network_range = match network_range_rs {
             Ok(cidr) => cidr,
             Err(err) => {
-                eprintln!("Could not guess which interface to use for discovery: {}", err);
+                eprintln!(
+                    "Could not guess which interface to use for discovery: {}",
+                    err
+                );
                 eprintln!("Please set one using --net <cidr>");
                 return Ok(FromCommand::SubcommandHandled);
-            },
+            }
         };
 
         if let Err(err) = tui_discover(network_range) {
@@ -70,13 +80,15 @@ pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<
         return Ok(FromCommand::SubcommandHandled);
     }
 
-    let bulbs: Vec<_> = args.values_of("target").unwrap()
-        .map(|addr| {
-            Bulb::connect(addr.parse().unwrap()).unwrap()
-        })
+    let bulbs: Vec<_> = args
+        .values_of("target")
+        .unwrap()
+        .map(|addr| Bulb::connect(addr.parse().unwrap()).unwrap())
         .collect();
 
-    let dev = Box::new(generic::Generic{ format: generic::Format::RGB24 });
+    let dev = Box::new(generic::Generic {
+        format: generic::Format::RGB24,
+    });
     let output = Display {
         bulbs,
         buf: Vec::new(),
@@ -122,20 +134,22 @@ fn tui_discover(network_range: Cidr) -> io::Result<()> {
     Ok(())
 }
 
-fn discover(network_range: Cidr) -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<String>)>> {
+fn discover(
+    network_range: Cidr,
+) -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<String>)>> {
     let (tx, rx) = sync::mpsc::channel();
 
     thread::spawn(move || {
         macro_rules! try_or_send {
-            ($expression:expr) => (
+            ($expression:expr) => {
                 match $expression {
-                    Ok(val)  => val,
+                    Ok(val) => val,
                     Err(err) => {
                         tx.send(Err(err)).unwrap();
                         return;
                     }
                 }
-            )
+            };
         }
 
         let socket = {
@@ -163,8 +177,7 @@ fn discover(network_range: Cidr) -> sync::mpsc::Receiver<io::Result<(net::Socket
                     // Filter out ourselves.
                     continue;
                 }
-                let name = String::from_utf8_lossy(&recv_buf)
-                    .into_owned();
+                let name = String::from_utf8_lossy(&recv_buf).into_owned();
                 tx.send(Ok((sender_addr, Some(name)))).unwrap();
             }
         }
@@ -179,7 +192,7 @@ struct Cidr {
 }
 
 impl Cidr {
-    fn addresses(&self) -> impl iter::Iterator<Item=net::Ipv4Addr> {
+    fn addresses(&self) -> impl iter::Iterator<Item = net::Ipv4Addr> {
         match (self.addr, self.mask) {
             (net::IpAddr::V4(network_ip), net::IpAddr::V4(mask_ip)) => {
                 let network: u32 = network_ip.into();
@@ -187,7 +200,7 @@ impl Cidr {
                 let start = network & mask;
                 let end = start | !mask;
                 (start..end).map(net::Ipv4Addr::from)
-            },
+            }
             (net::IpAddr::V6(_network), net::IpAddr::V6(_mask)) => unimplemented!(),
             _ => unreachable!(),
         }
@@ -196,7 +209,7 @@ impl Cidr {
     #[cfg(target_os = "linux")]
     fn default_interface() -> io::Result<Cidr> {
         use nix::net::if_::InterfaceFlags;
-        use nix::sys::socket::{SockAddr, InetAddr};
+        use nix::sys::socket::{InetAddr, SockAddr};
         nix::ifaddrs::getifaddrs()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?
             // We need an interface with an address and mask configured.
@@ -229,14 +242,21 @@ impl Cidr {
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Unable to determine default network"))
     }
 
-    #[cfg(any(target_os = "dragonfly",
-              target_os = "freebsd",
-              target_os = "ios",
-              target_os = "macos",
-              target_os = "netbsd",
-              target_os = "openbsd"))]
+    #[cfg(
+        any(
+            target_os = "dragonfly",
+            target_os = "freebsd",
+            target_os = "ios",
+            target_os = "macos",
+            target_os = "netbsd",
+            target_os = "openbsd"
+        )
+    )]
     fn default_interface() -> io::Result<Cidr> {
-        Err(io::Error::new(io::ErrorKind::Other, "Platform is not supported"))
+        Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Platform is not supported",
+        ))
     }
 }
 
@@ -244,16 +264,21 @@ impl FromStr for Cidr {
     type Err = Box<error::Error + Send + Sync>;
     fn from_str(s: &str) -> Result<Cidr, Self::Err> {
         let mut split = s.split('/');
-        let addr: net::IpAddr = split.next()
+        let addr: net::IpAddr = split
+            .next()
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "missing the address of the CIDR"))?
             .parse()?;
-        let mask_str = split.next()
+        let mask_str = split
+            .next()
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "missing the mask of the CIDR"))?;
-        let mask: net::IpAddr = mask_str.parse()
-            .or_else(|_| -> Result<_, Box<error::Error + Send + Sync>> {
+        let mask: net::IpAddr = mask_str.parse().or_else(
+            |_| -> Result<_, Box<error::Error + Send + Sync>> {
                 let bits: u32 = mask_str.parse()?;
-                Ok(net::IpAddr::V4(net::Ipv4Addr::from(!((0x8000_0000 >> (bits - 1)) - 1))))
-            })?;
-        Ok(Cidr{ addr, mask })
+                Ok(net::IpAddr::V4(net::Ipv4Addr::from(
+                    !((0x8000_0000 >> (bits - 1)) - 1),
+                )))
+            },
+        )?;
+        Ok(Cidr { addr, mask })
     }
 }

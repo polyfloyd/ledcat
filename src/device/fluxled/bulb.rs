@@ -1,6 +1,6 @@
-use std::*;
+use color::*;
 use std::io::Write;
-use ::color::*;
+use std::*;
 
 const PORT: u16 = 5577;
 
@@ -12,7 +12,7 @@ impl Bulb {
     pub fn connect(ip: net::IpAddr) -> io::Result<Bulb> {
         let conn = net::TcpStream::connect((ip, PORT)).unwrap();
         conn.set_read_timeout(Some(time::Duration::from_millis(100)))?;
-        Ok(Bulb{ conn })
+        Ok(Bulb { conn })
     }
 
     pub fn set_constant_color(&mut self, pix: &Pixel) -> io::Result<()> {
@@ -25,12 +25,8 @@ impl Bulb {
     }
 
     fn send_with_checksum(&mut self, data: &[u8]) -> io::Result<()> {
-        let checksum = data.iter()
-            .fold(0, |accum, b| accum + u32::from(*b)) as u8;
-        let buf: Vec<u8> = data.iter()
-            .cloned()
-            .chain(iter::once(checksum))
-            .collect();
+        let checksum = data.iter().fold(0, |accum, b| accum + u32::from(*b)) as u8;
+        let buf: Vec<u8> = data.iter().cloned().chain(iter::once(checksum)).collect();
         self.conn.write_all(&buf)
     }
 }
@@ -52,7 +48,11 @@ impl io::Write for Display {
 
     fn flush(&mut self) -> io::Result<()> {
         for (bulb, chunk) in self.bulbs.iter_mut().zip(self.buf.chunks(3)) {
-            bulb.set_constant_color(&Pixel{ r: chunk[0], g: chunk[1], b: chunk[2] })?;
+            bulb.set_constant_color(&Pixel {
+                r: chunk[0],
+                g: chunk[1],
+                b: chunk[2],
+            })?;
         }
         self.buf.clear();
         Ok(())

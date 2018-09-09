@@ -7,18 +7,15 @@ use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time;
 
-
 pub trait Target: Send {
     fn addresses(&self) -> Cow<[net::SocketAddr]>;
 }
-
 
 impl Target for Vec<net::SocketAddr> {
     fn addresses(&self) -> Cow<[net::SocketAddr]> {
         Cow::Borrowed(self)
     }
 }
-
 
 pub struct Broadcast {}
 
@@ -29,7 +26,6 @@ impl Target for Broadcast {
         Cow::Owned(addrs)
     }
 }
-
 
 pub struct ListFile {
     cache: Arc<RwLock<Vec<net::SocketAddr>>>,
@@ -48,7 +44,7 @@ impl ListFile {
                         Ok(t) => t,
                         Err(_) => continue,
                     }
-                }}
+                }};
             }
 
             let mut prev_mod_time = None;
@@ -67,16 +63,15 @@ impl ListFile {
                     v.clear();
 
                     let file = try_or_continue!(fs::File::open(&path));
-                    let addrs = io::BufReader::new(file).lines()
-                        .filter_map(|rs| {
-                            rs.ok()
-                        })
+                    let addrs = io::BufReader::new(file)
+                        .lines()
+                        .filter_map(|rs| rs.ok())
                         .filter_map(|line| {
-                            line.parse().ok()
-                                .or_else(|| {
-                                    line.parse().ok()
-                                        .map(|ip| net::SocketAddr::new(ip, super::PORT))
-                                })
+                            line.parse().ok().or_else(|| {
+                                line.parse()
+                                    .ok()
+                                    .map(|ip| net::SocketAddr::new(ip, super::PORT))
+                            })
                         });
                     v.extend(addrs);
                     v.dedup();

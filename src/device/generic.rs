@@ -1,7 +1,6 @@
-use std::io;
-use device::*;
 use clap;
-
+use device::*;
+use std::io;
 
 pub enum Format {
     RGB24,
@@ -10,7 +9,7 @@ pub enum Format {
 }
 
 pub struct Generic {
-    pub format: Format
+    pub format: Format,
 }
 
 impl Device for Generic {
@@ -21,13 +20,15 @@ impl Device for Generic {
     fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
         match self.format {
             Format::RGB24 => {
-                let buf: Vec<u8> = pixels.iter()
+                let buf: Vec<u8> = pixels
+                    .iter()
                     .flat_map(|pix| vec![pix.r, pix.g, pix.b])
                     .collect();
                 writer.write_all(&buf)?;
-            },
+            }
             Format::RGB16 => {
-                let buf: Vec<u8> = pixels.iter()
+                let buf: Vec<u8> = pixels
+                    .iter()
                     .flat_map(|pix| {
                         vec![
                             (pix.r & 0xf8) | (pix.g >> 5),
@@ -36,9 +37,10 @@ impl Device for Generic {
                     })
                     .collect();
                 writer.write_all(&buf)?;
-            },
+            }
             Format::RGB12 => {
-                let buf: Vec<u8> = pixels.chunks(2)
+                let buf: Vec<u8> = pixels
+                    .chunks(2)
                     .flat_map(|ch| {
                         let (a, b) = (&ch[0], ch.get(1).map(|p| *p).unwrap_or_default());
                         vec![
@@ -49,7 +51,7 @@ impl Device for Generic {
                     })
                     .collect();
                 writer.write_all(&buf)?;
-            },
+            }
         }
         Ok(())
     }
@@ -58,12 +60,14 @@ impl Device for Generic {
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
     clap::SubCommand::with_name("generic")
         .about("Output data as RGB24 or another pixel format")
-        .arg(clap::Arg::with_name("format")
-            .short("f")
-            .long("format")
-            .takes_value(true)
-            .default_value("rgb24")
-            .possible_values(&["rgb24", "rgb16", "rgb12"]))
+        .arg(
+            clap::Arg::with_name("format")
+                .short("f")
+                .long("format")
+                .takes_value(true)
+                .default_value("rgb24")
+                .possible_values(&["rgb24", "rgb16", "rgb12"]),
+        )
 }
 
 pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {

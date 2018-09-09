@@ -1,7 +1,6 @@
-use std::io;
-use device::*;
 use clap;
-
+use device::*;
+use std::io;
 
 pub struct HexWS2811 {}
 

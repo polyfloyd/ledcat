@@ -1,19 +1,17 @@
+use driver;
+use nix::sys::termios;
 use std::fs;
 use std::os::unix::io::AsRawFd;
 use std::path;
-use nix::sys::termios;
-use driver;
 
 pub fn open<P: AsRef<path::Path>>(path: P, baudrate: u32) -> Result<fs::File, driver::Error> {
-    let tty = fs::OpenOptions::new()
-        .write(true)
-        .read(true)
-        .open(path)?;
+    let tty = fs::OpenOptions::new().write(true).read(true).open(path)?;
     let fd = tty.as_raw_fd();
     let mut tio = termios::tcgetattr(fd)?;
-    tio.input_flags &= !(termios::InputFlags::ICRNL|termios::InputFlags::BRKINT);
-    tio.output_flags &= !(termios::OutputFlags::OPOST|termios::OutputFlags::ONLCR);
-    tio.local_flags &= !(termios::LocalFlags::ICANON|termios::LocalFlags::ISIG|termios::LocalFlags::ECHO);
+    tio.input_flags &= !(termios::InputFlags::ICRNL | termios::InputFlags::BRKINT);
+    tio.output_flags &= !(termios::OutputFlags::OPOST | termios::OutputFlags::ONLCR);
+    tio.local_flags &=
+        !(termios::LocalFlags::ICANON | termios::LocalFlags::ISIG | termios::LocalFlags::ECHO);
     termios::cfsetspeed(&mut tio, map_baudrate(baudrate))?;
     termios::tcsetattr(fd, termios::SetArg::TCSANOW, &tio)?;
     Ok(tty)

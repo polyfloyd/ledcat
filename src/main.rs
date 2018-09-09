@@ -8,6 +8,11 @@ extern crate net2;
 extern crate nix;
 extern crate regex;
 
+use color::*;
+use device::*;
+use driver::*;
+use input::geometry::*;
+use input::*;
 use std::borrow::Borrow;
 use std::collections;
 use std::env;
@@ -18,11 +23,6 @@ use std::process;
 use std::sync::mpsc;
 use std::thread;
 use std::time;
-use ::color::*;
-use ::device::*;
-use ::driver::*;
-use ::input::*;
-use ::input::geometry::*;
 
 #[macro_use]
 mod util;
@@ -30,7 +30,6 @@ mod color;
 mod device;
 mod driver;
 mod input;
-
 
 fn main() {
     let mut cli = clap::App::new("ledcat")
@@ -154,7 +153,7 @@ fn main() {
             let env = env::var("LEDCAT_GEOMETRY");
             match matches.value_of("geometry").unwrap() {
                 "env" => match env.as_ref().map(|e| e.as_str()) {
-                    Err(_)|Ok("") => None,
+                    Err(_) | Ok("") => None,
                     Ok(e) => Some(e),
                 },
                 v => Some(v),
@@ -168,7 +167,7 @@ fn main() {
             Err(err) => {
                 println!("{}", err);
                 return;
-            },
+            }
         };
         match from_command {
             FromCommand::Device(dev) => {
@@ -177,26 +176,34 @@ fn main() {
                     _ => matches.value_of("output").unwrap(),
                 });
 
-                let driver_name = matches.value_of("driver")
+                let driver_name = matches
+                    .value_of("driver")
                     .map(|s: &str| s.to_string())
                     .or_else(|| driver::detect(&output_file))
                     .unwrap_or_else(|| "none".to_string());
                 let output: Box<io::Write + Send> = match driver_name.as_str() {
-                    "none" => Box::new(fs::OpenOptions::new().write(true).open(&output_file).unwrap()),
-                    "spidev" => {
-                        Box::new(spidev::open(&output_file, dev.borrow()).unwrap())
-                    },
+                    "none" => Box::new(
+                        fs::OpenOptions::new()
+                            .write(true)
+                            .open(&output_file)
+                            .unwrap(),
+                    ),
+                    "spidev" => Box::new(spidev::open(&output_file, dev.borrow()).unwrap()),
                     "serial" => {
-                        let baudrate = matches.value_of("serial-baudrate").unwrap().parse::<u32>().unwrap();
+                        let baudrate = matches
+                            .value_of("serial-baudrate")
+                            .unwrap()
+                            .parse::<u32>()
+                            .unwrap();
                         Box::new(serial::open(&output_file, baudrate).unwrap())
-                    },
+                    }
                     _ => {
                         eprintln!("Unknown driver {}", driver_name);
                         return;
                     }
                 };
                 Box::new((dev, output))
-            },
+            }
             FromCommand::Output(output) => output,
             FromCommand::SubcommandHandled => return,
         }
@@ -206,10 +213,11 @@ fn main() {
         Err(err) => {
             eprintln!("{}", err);
             return;
-        },
+        }
     };
 
-    let transpose = matches.values_of("transpose")
+    let transpose = matches
+        .values_of("transpose")
         .map(|v| v.collect())
         .unwrap_or_else(Vec::new);
     let transposition = match transposition_table(&dimensions, transpose) {
@@ -221,20 +229,18 @@ fn main() {
     };
     assert_eq!(dimensions.size(), transposition.len());
 
-    let color_correction = matches.value_of("color-correction")
+    let color_correction = matches
+        .value_of("color-correction")
         .and_then(|name| match name {
             "none" => Some(Correction::none()),
             "srgb" => Some(Correction::srgb(255, 255, 255)),
             _ => None,
         })
         .unwrap_or_else(|| output.color_correction());
-    let dim = (matches.value_of("dim")
-            .unwrap()
-            .parse::<f32>()
-            .unwrap() * 255.0)
-        .round() as u8;
+    let dim = (matches.value_of("dim").unwrap().parse::<f32>().unwrap() * 255.0).round() as u8;
 
-    let frame_interval = matches.value_of("framerate")
+    let frame_interval = matches
+        .value_of("framerate")
         .map(|fps| time::Duration::new(1, 0) / fps.parse::<u32>().unwrap());
     let single_frame = matches.is_present("single-frame");
 
@@ -244,19 +250,22 @@ fn main() {
     } else {
         select::WhenEOF::Close
     };
-    let files = inputs.map(|f| match f {
+    let files = inputs
+        .map(|f| match f {
             "-" => "/dev/stdin",
             f => f,
         })
         .collect();
-    let clear_timeout = frame_interval.map(|t| t * 2)
-        .unwrap_or_else(|| {
-            let ms = matches.value_of("clear-timeout")
-                .map(|v| v.parse::<u32>().unwrap())
-                .unwrap_or(100);
-            time::Duration::new(0, ms * 1_000_000)
-        });
-    let input = select::Reader::from_files(files, dimensions.size() * 3, input_eof, Some(clear_timeout)).unwrap();
+    let clear_timeout = frame_interval.map(|t| t * 2).unwrap_or_else(|| {
+        let ms = matches
+            .value_of("clear-timeout")
+            .map(|v| v.parse::<u32>().unwrap())
+            .unwrap_or(100);
+        time::Duration::new(0, ms * 1_000_000)
+    });
+    let input =
+        select::Reader::from_files(files, dimensions.size() * 3, input_eof, Some(clear_timeout))
+            .unwrap();
 
     let _ = pipe_frames(
         input,
@@ -265,29 +274,30 @@ fn main() {
         color_correction,
         dim,
         single_frame,
-        frame_interval
+        frame_interval,
     );
 }
 
-fn pipe_frames(mut input: impl io::Read + Send + 'static,
-               mut dev: impl Output + 'static,
-               transposition: Vec<usize>,
-               correction: Correction,
-               dim: u8,
-               single_frame: bool,
-               frame_interval: Option<time::Duration>)
-               -> io::Result<()> {
+fn pipe_frames(
+    mut input: impl io::Read + Send + 'static,
+    mut dev: impl Output + 'static,
+    transposition: Vec<usize>,
+    correction: Correction,
+    dim: u8,
+    single_frame: bool,
+    frame_interval: Option<time::Duration>,
+) -> io::Result<()> {
     let (err_tx, err_rx) = mpsc::channel();
     macro_rules! try_or_send {
-        ($tx:expr, $expression:expr) => (
+        ($tx:expr, $expression:expr) => {
             match $expression {
-                Ok(val)  => val,
+                Ok(val) => val,
                 Err(err) => {
                     $tx.send(Err(err)).unwrap();
                     return;
                 }
             }
-        )
+        };
     }
 
     let local_err_tx = err_tx.clone();
@@ -305,7 +315,6 @@ fn pipe_frames(mut input: impl io::Read + Send + 'static,
                 break;
             }
         }
-
     });
 
     let (map_tx, map_rx) = mpsc::sync_channel(1);
@@ -337,21 +346,19 @@ fn pipe_frames(mut input: impl io::Read + Send + 'static,
         }
     });
 
-    thread::spawn(move || {
-        loop {
-            let start = time::Instant::now();
+    thread::spawn(move || loop {
+        let start = time::Instant::now();
 
-            let buffer = match map_rx.recv() {
-                Ok(v) => v,
-                Err(_) => break,
-            };
-            try_or_send!(err_tx, dev.output_frame(&buffer));
+        let buffer = match map_rx.recv() {
+            Ok(v) => v,
+            Err(_) => break,
+        };
+        try_or_send!(err_tx, dev.output_frame(&buffer));
 
-            if let Some(interval) = frame_interval {
-                let el = start.elapsed();
-                if interval >= el {
-                    thread::sleep(interval - el);
-                }
+        if let Some(interval) = frame_interval {
+            let el = start.elapsed();
+            if interval >= el {
+                thread::sleep(interval - el);
             }
         }
     });
@@ -362,40 +369,45 @@ fn pipe_frames(mut input: impl io::Read + Send + 'static,
     }
 }
 
-fn transposition_table(dimensions: &Dimensions,
-                       operations: Vec<&str>)
-                       -> Result<Vec<usize>, String> {
-    let transpositions: Vec<Box<Transposition>> = try!(operations.into_iter()
-        .map(|name| -> Result<Box<Transposition>, String> {
-            match (name, *dimensions) {
-                ("reverse", dim) => Ok(Box::from(Reverse { length: dim.size() })),
-                ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
-                    Ok(Box::from(Zigzag {
-                        width: w,
-                        height: h,
-                        major_axis: match name.chars().last().unwrap() {
-                            'x' => Axis::X,
-                            'y' => Axis::Y,
-                            _ => unreachable!(),
-                        },
-                    }))
-                },
-                ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
-                    Ok(Box::from(Mirror {
-                        width: w,
-                        height: h,
-                        axis: match name.chars().last().unwrap() {
-                            'x' => Axis::X,
-                            'y' => Axis::Y,
-                            _ => unreachable!(),
-                        },
-                    }))
-                },
-                (name, Dimensions::One(_)) => Err(format!("{} requires 2D geometry to be specified", name)),
-                (name, _) => Err(format!("Unknown transposition: {}", name)),
-            }
-        })
-        .collect());
+fn transposition_table(
+    dimensions: &Dimensions,
+    operations: Vec<&str>,
+) -> Result<Vec<usize>, String> {
+    let transpositions: Vec<Box<Transposition>> =
+        try!(
+            operations
+                .into_iter()
+                .map(|name| -> Result<Box<Transposition>, String> {
+                    match (name, *dimensions) {
+                        ("reverse", dim) => Ok(Box::from(Reverse { length: dim.size() })),
+                        ("zigzag_x", Dimensions::Two(w, h))
+                        | ("zigzag_y", Dimensions::Two(w, h)) => Ok(Box::from(Zigzag {
+                            width: w,
+                            height: h,
+                            major_axis: match name.chars().last().unwrap() {
+                                'x' => Axis::X,
+                                'y' => Axis::Y,
+                                _ => unreachable!(),
+                            },
+                        })),
+                        ("mirror_x", Dimensions::Two(w, h))
+                        | ("mirror_y", Dimensions::Two(w, h)) => Ok(Box::from(Mirror {
+                            width: w,
+                            height: h,
+                            axis: match name.chars().last().unwrap() {
+                                'x' => Axis::X,
+                                'y' => Axis::Y,
+                                _ => unreachable!(),
+                            },
+                        })),
+                        (name, Dimensions::One(_)) => {
+                            Err(format!("{} requires 2D geometry to be specified", name))
+                        }
+                        (name, _) => Err(format!("Unknown transposition: {}", name)),
+                    }
+                })
+                .collect()
+        );
     Ok((0..dimensions.size())
         .map(|index| transpositions.transpose(index))
         .collect())

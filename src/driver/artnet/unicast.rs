@@ -1,14 +1,14 @@
+use super::target::*;
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
+use nix::sys::socket;
 use std::io;
-use std::net::ToSocketAddrs;
 use std::net;
+use std::net::ToSocketAddrs;
 use std::os::unix::io::FromRawFd;
 use std::str;
 use std::sync;
 use std::thread;
 use std::time;
-use nix::sys::socket;
-use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian, LittleEndian};
-use super::target::*;
 
 pub const PORT: u16 = 6454;
 
@@ -24,11 +24,11 @@ impl Unicast {
         let socket = reuse_bind(("0.0.0.0", PORT))?;
         socket.set_broadcast(true)?;
         Ok(Unicast {
-               socket,
-               target,
-               frame_size,
-               frame_buffer: Vec::with_capacity(frame_size),
-           })
+            socket,
+            target,
+            frame_size,
+            frame_buffer: Vec::with_capacity(frame_size),
+        })
     }
 }
 
@@ -59,15 +59,15 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<St
 
     thread::spawn(move || {
         macro_rules! try_or_send {
-            ($expression:expr) => (
+            ($expression:expr) => {
                 match $expression {
-                    Ok(val)  => val,
+                    Ok(val) => val,
                     Err(err) => {
                         tx.send(Err(err)).unwrap();
                         return;
                     }
                 }
-            )
+            };
         }
 
         let socket = try_or_send!(reuse_bind(("0.0.0.0", PORT)));
@@ -111,7 +111,9 @@ pub fn broadcast_addr() -> net::SocketAddr {
 }
 
 fn art_poll_packet<W>(mut wr: W) -> io::Result<()>
-    where W: io::Write {
+where
+    W: io::Write,
+{
     wr.write_all(b"Art-Net\0")?; // Artnet Header
     wr.write_u16::<LittleEndian>(0x2000)?; // OpCode
     wr.write_u8(4)?; // ProtVerHi
@@ -122,9 +124,14 @@ fn art_poll_packet<W>(mut wr: W) -> io::Result<()>
 }
 
 fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
-    where W: io::Write {
+where
+    W: io::Write,
+{
     if data.len() >= 0xffff {
-        return Err(io::Error::new(io::ErrorKind::Other, "data exceeds max dmx packet length"));
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "data exceeds max dmx packet length",
+        ));
     }
     wr.write_all(b"Art-Net\0")?; // Artnet Header
     wr.write_u16::<LittleEndian>(0x5000)?; // OpCode
@@ -140,7 +147,7 @@ fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
 }
 
 /// Like `UdpSocket::bind`, but sets the socket reuse flags before binding.
-#[cfg_attr(feature="clippy", allow(needless_pass_by_value))]
+#[cfg_attr(feature = "clippy", allow(needless_pass_by_value))]
 fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
     let addr = to_addr.to_socket_addrs()?.next().unwrap();
     let fd = io_err!(socket::socket(
@@ -154,7 +161,10 @@ fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
     io_err!(socket::setsockopt(fd, socket::sockopt::ReusePort, &true))?;
 
     if addr.is_ipv6() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Artnet does not support IPv6 :("))
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Artnet does not support IPv6 :(",
+        ));
     }
     let sock_addr = socket::SockAddr::new_inet(socket::InetAddr::from_std(&addr));
     io_err!(socket::bind(fd, &sock_addr))?;

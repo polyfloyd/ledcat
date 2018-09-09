@@ -1,8 +1,7 @@
-use std::io;
 use clap;
 use color::*;
 use device::*;
-
+use std::io;
 
 pub struct Lpd8806 {
     pub spidev_clock: u32,
@@ -26,26 +25,28 @@ impl Device for Lpd8806 {
         // FIXME: The number of zero bytes in the header and trailer should not be magic.
         writer.write_all(&[0x00; 10])?;
         for pix in pixels.iter().rev() {
-            writer.write_all(&[(pix.g >> 1) | 0x80, (pix.r >> 1) | 0x80, (pix.b >> 1) | 0x80])?;
+            writer.write_all(&[
+                (pix.g >> 1) | 0x80,
+                (pix.r >> 1) | 0x80,
+                (pix.b >> 1) | 0x80,
+            ])?;
         }
         writer.write_all(&[0x00; 50])
     }
 }
 
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("lpd8806")
-        .arg(clap::Arg::with_name("spidev-clock")
+    clap::SubCommand::with_name("lpd8806").arg(
+        clap::Arg::with_name("spidev-clock")
             .long("spidev-clock")
             .takes_value(true)
             .validator(regex_validator!(r"^[1-9]\d*$"))
             .default_value("500000")
-            .help("If spidev is used as driver, use this to set the clock frequency in Hertz"))
+            .help("If spidev is used as driver, use this to set the clock frequency in Hertz"),
+    )
 }
 
 pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
-    let spidev_clock = args.value_of("spidev-clock").unwrap()
-        .parse().unwrap();
-    Ok(FromCommand::Device(Box::new(Lpd8806 {
-        spidev_clock,
-    })))
+    let spidev_clock = args.value_of("spidev-clock").unwrap().parse().unwrap();
+    Ok(FromCommand::Device(Box::new(Lpd8806 { spidev_clock })))
 }

@@ -1,3 +1,5 @@
+use clap;
+use device::*;
 use std::collections;
 use std::io::{self, Write};
 use std::net;
@@ -5,46 +7,53 @@ use std::str::FromStr;
 use std::sync;
 use std::thread;
 use std::time;
-use clap;
-use ::device::*;
 
-mod unicast;
 mod target;
-use self::unicast::*;
+mod unicast;
 use self::target::*;
-
+use self::unicast::*;
 
 pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
     clap::SubCommand::with_name("artnet")
         .about("Control artnet DMX nodes via unicast and broadcast")
-        .arg(clap::Arg::with_name("target")
-            .short("t")
-            .long("target")
-            .takes_value(true)
-            .min_values(1)
-            .multiple(true)
-            .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
-                Ok(_) => Ok(()),
-                Err(err) => Err(format!("{} ({})", err, addr)),
-            })
-            .conflicts_with_all(&["discover", "target-list", "broadcast"])
-            .help("One or more target IP addresses"))
-        .arg(clap::Arg::with_name("target-list")
-            .long("target-list")
-            .takes_value(true)
-            .conflicts_with_all(&["target", "discover", "broadcast"])
-            .help("Specify a file containing 1 IP address per line to unicast to. \
-                   Changes to the file are read automatically"))
-        .arg(clap::Arg::with_name("broadcast")
-            .short("b")
-            .long("broadcast")
-            .conflicts_with_all(&["target", "target-list", "discover"])
-            .help("Broadcast to all devices in the network"))
-        .arg(clap::Arg::with_name("discover")
-            .short("d")
-            .long("discover")
-            .conflicts_with_all(&["target", "target-list", "broadcast"])
-            .help("Discover artnet nodes"))
+        .arg(
+            clap::Arg::with_name("target")
+                .short("t")
+                .long("target")
+                .takes_value(true)
+                .min_values(1)
+                .multiple(true)
+                .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
+                    Ok(_) => Ok(()),
+                    Err(err) => Err(format!("{} ({})", err, addr)),
+                })
+                .conflicts_with_all(&["discover", "target-list", "broadcast"])
+                .help("One or more target IP addresses"),
+        )
+        .arg(
+            clap::Arg::with_name("target-list")
+                .long("target-list")
+                .takes_value(true)
+                .conflicts_with_all(&["target", "discover", "broadcast"])
+                .help(
+                    "Specify a file containing 1 IP address per line to unicast to. \
+                     Changes to the file are read automatically",
+                ),
+        )
+        .arg(
+            clap::Arg::with_name("broadcast")
+                .short("b")
+                .long("broadcast")
+                .conflicts_with_all(&["target", "target-list", "discover"])
+                .help("Broadcast to all devices in the network"),
+        )
+        .arg(
+            clap::Arg::with_name("discover")
+                .short("d")
+                .long("discover")
+                .conflicts_with_all(&["target", "target-list", "broadcast"])
+                .help("Discover artnet nodes"),
+        )
 }
 
 pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
@@ -55,15 +64,19 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         return Ok(FromCommand::SubcommandHandled);
     }
 
-    let dev = Box::new(generic::Generic { format: generic::Format::RGB24 });
+    let dev = Box::new(generic::Generic {
+        format: generic::Format::RGB24,
+    });
     let artnet_target: Box<Target> = if args.is_present("broadcast") {
-        Box::new(Broadcast{})
+        Box::new(Broadcast {})
     } else if let Some(list_path) = args.value_of("target-list") {
         Box::new(ListFile::new(list_path))
     } else if args.is_present("target") {
-        let addresses: Vec<_> = args.values_of("target").unwrap().map(|addr| {
-            net::SocketAddr::new(addr.parse().unwrap(), PORT)
-        }).collect();
+        let addresses: Vec<_> = args
+            .values_of("target")
+            .unwrap()
+            .map(|addr| net::SocketAddr::new(addr.parse().unwrap(), PORT))
+            .collect();
         Box::new(addresses)
     } else {
         eprintln!("Missing artnet target. Please set --target IP or --broadcast");

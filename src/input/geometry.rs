@@ -1,5 +1,5 @@
-use std::str;
 use regex::Regex;
+use std::str;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Dimensions {
@@ -24,19 +24,20 @@ impl str::FromStr for Dimensions {
         if let Some(cap) = d1.captures(s) {
             Ok(Dimensions::One(cap[0].parse().unwrap()))
         } else if let Some(cap) = d2.captures(s) {
-            Ok(Dimensions::Two(cap[1].parse().unwrap(), cap[2].parse().unwrap()))
+            Ok(Dimensions::Two(
+                cap[1].parse().unwrap(),
+                cap[2].parse().unwrap(),
+            ))
         } else {
             Err(format!("can not parse \"{}\" into Dimensions", s))
         }
     }
 }
 
-
 pub enum Axis {
     X,
     Y,
 }
-
 
 pub trait Transposition {
     fn transpose(&self, index: usize) -> usize;
@@ -48,7 +49,6 @@ impl Transposition for Vec<Box<Transposition>> {
     }
 }
 
-
 pub struct Reverse {
     pub length: usize,
 }
@@ -59,7 +59,6 @@ impl Transposition for Reverse {
         self.length - index - 1
     }
 }
-
 
 pub struct Mirror {
     pub width: usize,
@@ -78,7 +77,6 @@ impl Transposition for Mirror {
         }
     }
 }
-
 
 pub struct Zigzag {
     pub width: usize,
@@ -112,15 +110,16 @@ impl Transposition for Zigzag {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::*;
     use super::*;
+    use std::*;
 
     fn transpose_all<T, I>(trans: &T, input: I) -> Vec<usize>
-        where T: Transposition,
-              I: iter::Iterator<Item = usize> {
+    where
+        T: Transposition,
+        I: iter::Iterator<Item = usize>,
+    {
         input.map(|index| trans.transpose(index)).collect()
     }
 
@@ -139,7 +138,10 @@ mod tests {
         assert!("1x-1".parse::<Dimensions>().is_err());
         assert!("-1x0".parse::<Dimensions>().is_err());
         assert!("-1x-1".parse::<Dimensions>().is_err());
-        assert_eq!(Dimensions::Two(4, 20), "4x20".parse::<Dimensions>().unwrap());
+        assert_eq!(
+            Dimensions::Two(4, 20),
+            "4x20".parse::<Dimensions>().unwrap()
+        );
     }
 
     #[test]
@@ -158,14 +160,18 @@ mod tests {
             }),
             Box::from(Reverse { length: 4 * 3 }),
         ];
-        assert_eq!(vec![11, 10, 9, 8, 4, 5, 6, 7, 3, 2, 1, 0],
-                   transpose_all(&tr, 0..12));
+        assert_eq!(
+            vec![11, 10, 9, 8, 4, 5, 6, 7, 3, 2, 1, 0],
+            transpose_all(&tr, 0..12)
+        );
     }
 
     #[test]
     fn reverse() {
-        assert_eq!(vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
-                   transpose_all(&Reverse { length: 10 }, 0..10));
+        assert_eq!(
+            vec![9, 8, 7, 6, 5, 4, 3, 2, 1, 0],
+            transpose_all(&Reverse { length: 10 }, 0..10)
+        );
     }
 
     #[test]
@@ -201,8 +207,10 @@ mod tests {
             height: 3,
             major_axis: Axis::X,
         };
-        assert_eq!(vec![0, 5, 6, 11, 1, 4, 7, 10, 2, 3, 8, 9],
-                   transpose_all(&zz, 0..12));
+        assert_eq!(
+            vec![0, 5, 6, 11, 1, 4, 7, 10, 2, 3, 8, 9],
+            transpose_all(&zz, 0..12)
+        );
     }
 
     #[test]
@@ -218,7 +226,9 @@ mod tests {
             height: 3,
             major_axis: Axis::Y,
         };
-        assert_eq!(vec![0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11],
-                   transpose_all(&zz, 0..12));
+        assert_eq!(
+            vec![0, 1, 2, 3, 7, 6, 5, 4, 8, 9, 10, 11],
+            transpose_all(&zz, 0..12)
+        );
     }
 }

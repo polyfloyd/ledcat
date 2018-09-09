@@ -1,3 +1,4 @@
+use nix::{fcntl, poll};
 use std::fs;
 use std::io;
 use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
@@ -5,8 +6,6 @@ use std::os::unix::io::AsRawFd;
 use std::path;
 use std::thread;
 use std::time;
-use nix::{fcntl, poll};
-
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum WhenEOF {
@@ -14,10 +13,9 @@ pub enum WhenEOF {
     Retry,
 }
 
-pub trait ReadFd: io::Read + AsRawFd { }
+pub trait ReadFd: io::Read + AsRawFd {}
 
-impl<T> ReadFd for T
-    where T: io::Read + AsRawFd { }
+impl<T> ReadFd for T where T: io::Read + AsRawFd {}
 
 pub struct Reader {
     when_eof: WhenEOF,
@@ -34,38 +32,53 @@ pub struct Reader {
 }
 
 impl Reader {
-    pub fn from_files<P>(filenames: Vec<P>, switch_after: usize, when_eof: WhenEOF, clear_timeout: Option<time::Duration>) -> io::Result<Reader>
-        where P: AsRef<path::Path> {
-        let files: io::Result<Vec<Box<ReadFd + Send>>> = filenames.into_iter().map(|filename| {
-            let mut open_opts = fs::OpenOptions::new();
-            open_opts.read(true);
+    pub fn from_files<P>(
+        filenames: Vec<P>,
+        switch_after: usize,
+        when_eof: WhenEOF,
+        clear_timeout: Option<time::Duration>,
+    ) -> io::Result<Reader>
+    where
+        P: AsRef<path::Path>,
+    {
+        let files: io::Result<Vec<Box<ReadFd + Send>>> = filenames
+            .into_iter()
+            .map(|filename| {
+                let mut open_opts = fs::OpenOptions::new();
+                open_opts.read(true);
 
-            let is_fifo = fs::metadata(&filename)?.file_type().is_fifo();
-            if is_fifo {
-                // A FIFO will block the call to open() until the other end has been opened. This
-                // means that when multiple FIFO's are used, they all have to be open at once
-                // before this program can continue.
-                // Opening the file with O_NONBLOCK will ensure that we don't have to wait.
-                // After the file has been opened, there is no need to make reads block again since
-                // poll(2) is used to check whether data is available.
-                open_opts.custom_flags(fcntl::OFlag::O_NONBLOCK.bits());
+                let is_fifo = fs::metadata(&filename)?.file_type().is_fifo();
+                if is_fifo {
+                    // A FIFO will block the call to open() until the other end has been opened. This
+                    // means that when multiple FIFO's are used, they all have to be open at once
+                    // before this program can continue.
+                    // Opening the file with O_NONBLOCK will ensure that we don't have to wait.
+                    // After the file has been opened, there is no need to make reads block again since
+                    // poll(2) is used to check whether data is available.
+                    open_opts.custom_flags(fcntl::OFlag::O_NONBLOCK.bits());
 
-                if when_eof == WhenEOF::Retry {
-                    // When the first program writing to the FIFO closes the writing end, poll will
-                    // immediately return with a POLLHUP for the respective reading end because all
-                    // writing ends have been closed. If we open the FIFO for writing ourselves,
-                    // there will always be writers. This ensures that poll never returnes POLLHUP.
-                    open_opts.write(true);
+                    if when_eof == WhenEOF::Retry {
+                        // When the first program writing to the FIFO closes the writing end, poll will
+                        // immediately return with a POLLHUP for the respective reading end because all
+                        // writing ends have been closed. If we open the FIFO for writing ourselves,
+                        // there will always be writers. This ensures that poll never returnes POLLHUP.
+                        open_opts.write(true);
+                    }
                 }
-            }
 
-            let file = open_opts.open(&filename)?;
-            Ok(Box::<ReadFd + Send>::from(Box::new(file)))
-        }).collect();
+                let file = open_opts.open(&filename)?;
+                Ok(Box::<ReadFd + Send>::from(Box::new(file)))
+            })
+            .collect();
         Ok(Reader::from(files?, switch_after, when_eof, clear_timeout))
     }
 
-    pub fn from(inputs: Vec<Box<ReadFd + Send>>, switch_after: usize, when_eof: WhenEOF, clear_timeout: Option<time::Duration>) -> Reader {
+    pub fn from(
+        inputs: Vec<Box<ReadFd + Send>>,
+        switch_after: usize,
+        when_eof: WhenEOF,
+        clear_timeout: Option<time::Duration>,
+    ) -> Reader {
         assert_ne!(inputs.len(), 0);
         let buffers = (0..inputs.len())
             .map(|_| Vec::with_capacity(switch_after))
@@ -87,12 +100,14 @@ impl io::Read for Reader {
             // The end of the current buffer has been reached, fetch more data.
             loop {
                 // Perform a poll to see if there are any inputs ready for reading.
-                let mut poll_fds: Vec<_> = self.inputs.iter()
-                    .map(|inp| {
-                        poll::PollFd::new(inp.as_raw_fd(), poll::EventFlags::POLLIN)
-                    })
+                let mut poll_fds: Vec<_> = self
+                    .inputs
+                    .iter()
+                    .map(|inp| poll::PollFd::new(inp.as_raw_fd(), poll::EventFlags::POLLIN))
                     .collect();
-                let timeout = self.clear_timeout.as_ref()
+                let timeout = self
+                    .clear_timeout
+                    .as_ref()
                     .map(|t| t.as_secs() as i32 * 1_000 + t.subsec_nanos() as i32 / 1_000_000)
                     .unwrap_or(-1);
                 if io_err!(poll::poll(&mut poll_fds, timeout))? == 0 {
@@ -118,13 +133,18 @@ impl io::Read for Reader {
                         let nread = self.inputs[i].read(&mut buf[buf_used..])?;
                         buf.resize(buf_used + nread, 0);
                         assert!(buf.len() <= self.switch_after);
-                        if nread == 0 { // EOF
+                        if nread == 0 {
+                            // EOF
                             num_open -= 1;
                         } else if buf.len() == self.switch_after {
                             ready_index = Some(i);
                             break;
                         }
-                    } else if rev.intersects(poll::EventFlags::POLLHUP|poll::EventFlags::POLLNVAL|poll::EventFlags::POLLERR) {
+                    } else if rev.intersects(
+                        poll::EventFlags::POLLHUP
+                            | poll::EventFlags::POLLNVAL
+                            | poll::EventFlags::POLLERR,
+                    ) {
                         num_open -= 1;
                     }
                 }
@@ -134,7 +154,8 @@ impl io::Read for Reader {
                         return Ok(0);
                     }
                     // Prevent a busy wait for inputs that make poll return immediately.
-                    let wait = self.clear_timeout
+                    let wait = self
+                        .clear_timeout
                         .unwrap_or_else(|| time::Duration::new(0, 10_000_000));
                     thread::sleep(wait);
                 }
@@ -152,24 +173,23 @@ impl io::Read for Reader {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     extern crate rand;
     extern crate tempdir;
-    use std::*;
-    use std::io::{Seek, Read, Write};
-    use std::os::unix::io::FromRawFd;
-    use std::sync::mpsc;
+    use self::rand::distributions::Alphanumeric;
+    use self::rand::Rng;
+    use super::*;
     use nix::sys::stat::Mode;
     use nix::unistd;
-    use super::*;
-    use self::rand::Rng;
-    use self::rand::distributions::Alphanumeric;
+    use std::io::{Read, Seek, Write};
+    use std::os::unix::io::FromRawFd;
+    use std::sync::mpsc;
+    use std::*;
 
     macro_rules! timeout {
         ($timeout:expr, $block:block) => {{
-            #![cfg_attr(feature="clippy", allow(unit_expr))]
+            #![cfg_attr(feature = "clippy", allow(unit_expr))]
             let (tx, rx) = mpsc::sync_channel(1);
             let thread = thread::spawn(move || {
                 let val = $block;
@@ -180,16 +200,19 @@ mod tests {
                 panic!("Timeout expired");
             }
             thread.join().unwrap()
-        }}
+        }};
     }
 
     // FIXME: This function uses memfd, which is not available on Mac OS.
     // FIXME: The CI env can't handle poll(2) or something.
     #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
     fn new_iter_reader<I>(iter: I) -> Box<fs::File>
-        where I: iter::Iterator<Item = u8> {
+    where
+        I: iter::Iterator<Item = u8>,
+    {
         use nix::sys::memfd::*;
-        let name = rand::thread_rng().sample_iter(&Alphanumeric)
+        let name = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
             .take(32)
             .collect::<String>();
         let cname = ffi::CString::new(name).unwrap();
@@ -214,8 +237,10 @@ mod tests {
         let len = 100;
         let num = 16;
         let testdata: Vec<u8> = (1..num + 1)
-            .fold(Box::from(iter::empty()) as Box<iter::Iterator<Item = _>>,
-                  |ch, i| Box::from(ch.chain(iter::repeat(i as u8).take(len))))
+            .fold(
+                Box::from(iter::empty()) as Box<iter::Iterator<Item = _>>,
+                |ch, i| Box::from(ch.chain(iter::repeat(i as u8).take(len))),
+            )
             .collect();
 
         let mut reader = Reader::from(
@@ -242,7 +267,9 @@ mod tests {
         let num = 16;
 
         let mut reader = Reader::from(
-            (1..num + 1).map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<ReadFd + Send>).collect(),
+            (1..num + 1)
+                .map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<ReadFd + Send>)
+                .collect(),
             len,
             WhenEOF::Close,
             None,
@@ -263,7 +290,10 @@ mod tests {
     #[test]
     fn read_eof() {
         let mut reader = Reader::from(
-            vec![new_iter_reader(iter::empty()), new_iter_reader(iter::empty())],
+            vec![
+                new_iter_reader(iter::empty()),
+                new_iter_reader(iter::empty()),
+            ],
             1,
             WhenEOF::Close,
             None,
@@ -275,7 +305,7 @@ mod tests {
 
     #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
     #[test]
-    #[should_panic(expected="Timeout expired")]
+    #[should_panic(expected = "Timeout expired")]
     fn read_eof_retry() {
         let mut reader = Reader::from(
             vec![new_iter_reader(iter::empty())],
@@ -300,14 +330,16 @@ mod tests {
         unistd::mkfifo(&fifo1_path, Mode::from_bits(0o666).unwrap()).unwrap();
         unistd::mkfifo(&fifo2_path, Mode::from_bits(0o666).unwrap()).unwrap();
 
-        let mut reader = Reader::from_files(
-            vec![&fifo1_path, &fifo2_path],
-            len,
-            WhenEOF::Close,
-            None,
-        ).unwrap();
-        let mut fifo1 = fs::OpenOptions::new().write(true).open(&fifo1_path).unwrap();
-        let mut fifo2 = fs::OpenOptions::new().write(true).open(&fifo2_path).unwrap();
+        let mut reader =
+            Reader::from_files(vec![&fifo1_path, &fifo2_path], len, WhenEOF::Close, None).unwrap();
+        let mut fifo1 = fs::OpenOptions::new()
+            .write(true)
+            .open(&fifo1_path)
+            .unwrap();
+        let mut fifo2 = fs::OpenOptions::new()
+            .write(true)
+            .open(&fifo2_path)
+            .unwrap();
 
         let mut rd_buf = vec![0; len];
 
@@ -344,12 +376,8 @@ mod tests {
         let tmp = tempdir::TempDir::new("clear_timeout").unwrap();
         let fifo_path = tmp.path().join("fifo");
         unistd::mkfifo(&fifo_path, Mode::from_bits(0o666).unwrap()).unwrap();
-        let mut reader = Reader::from_files(
-            vec![&fifo_path],
-            len,
-            WhenEOF::Close,
-            Some(timeout),
-        ).unwrap();
+        let mut reader =
+            Reader::from_files(vec![&fifo_path], len, WhenEOF::Close, Some(timeout)).unwrap();
         let mut fifo = fs::OpenOptions::new().write(true).open(&fifo_path).unwrap();
 
         let thread = thread::spawn(move || {
