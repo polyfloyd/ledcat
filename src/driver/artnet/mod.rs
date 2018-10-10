@@ -26,11 +26,9 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
                 .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(format!("{} ({})", err, addr)),
-                })
-                .conflicts_with_all(&["discover", "target-list", "broadcast"])
+                }).conflicts_with_all(&["discover", "target-list", "broadcast"])
                 .help("One or more target IP addresses"),
-        )
-        .arg(
+        ).arg(
             clap::Arg::with_name("target-list")
                 .long("target-list")
                 .takes_value(true)
@@ -39,15 +37,13 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
                     "Specify a file containing 1 IP address per line to unicast to. \
                      Changes to the file are read automatically",
                 ),
-        )
-        .arg(
+        ).arg(
             clap::Arg::with_name("broadcast")
                 .short("b")
                 .long("broadcast")
                 .conflicts_with_all(&["target", "target-list", "discover"])
                 .help("Broadcast to all devices in the network"),
-        )
-        .arg(
+        ).arg(
             clap::Arg::with_name("discover")
                 .short("d")
                 .long("discover")

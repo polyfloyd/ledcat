@@ -205,7 +205,12 @@ mod tests {
 
     // FIXME: This function uses memfd, which is not available on Mac OS.
     // FIXME: The CI env can't handle poll(2) or something.
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(
+        all(
+            target_os = "linux",
+            not(all(feature = "ci", target_arch = "arm"))
+        )
+    )]
     fn new_iter_reader<I>(iter: I) -> Box<fs::File>
     where
         I: iter::Iterator<Item = u8>,
@@ -231,7 +236,12 @@ mod tests {
         wr.flush().unwrap();
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(
+        all(
+            target_os = "linux",
+            not(all(feature = "ci", target_arch = "arm"))
+        )
+    )]
     #[test]
     fn read_one_input() {
         let len = 100;
@@ -240,8 +250,7 @@ mod tests {
             .fold(
                 Box::from(iter::empty()) as Box<iter::Iterator<Item = _>>,
                 |ch, i| Box::from(ch.chain(iter::repeat(i as u8).take(len))),
-            )
-            .collect();
+            ).collect();
 
         let mut reader = Reader::from(
             vec![new_iter_reader(testdata.clone().into_iter())],
@@ -260,7 +269,12 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(
+        all(
+            target_os = "linux",
+            not(all(feature = "ci", target_arch = "arm"))
+        )
+    )]
     #[test]
     fn read_multiple_inputs_order() {
         let len = 100;
@@ -286,7 +300,12 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(
+        all(
+            target_os = "linux",
+            not(all(feature = "ci", target_arch = "arm"))
+        )
+    )]
     #[test]
     fn read_eof() {
         let mut reader = Reader::from(
@@ -303,7 +322,12 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(
+        all(
+            target_os = "linux",
+            not(all(feature = "ci", target_arch = "arm"))
+        )
+    )]
     #[test]
     #[should_panic(expected = "Timeout expired")]
     fn read_eof_retry() {

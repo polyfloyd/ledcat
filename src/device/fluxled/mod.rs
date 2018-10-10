@@ -32,18 +32,15 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
                 .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
                     Ok(_) => Ok(()),
                     Err(err) => Err(format!("{} ({})", err, addr)),
-                })
-                .conflicts_with_all(&["discover"])
+                }).conflicts_with_all(&["discover"])
                 .help("One or more target IP addresses"),
-        )
-        .arg(
+        ).arg(
             clap::Arg::with_name("discover")
                 .short("d")
                 .long("discover")
                 .conflicts_with_all(&["target"])
                 .help("Discover Flux-LED nodes"),
-        )
-        .arg(
+        ).arg(
             clap::Arg::with_name("network")
                 .short("n")
                 .long("net")
@@ -60,8 +57,7 @@ pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<
             .map(|cidr| {
                 cidr.parse()
                     .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-            })
-            .unwrap_or_else(Cidr::default_interface);
+            }).unwrap_or_else(Cidr::default_interface);
         let network_range = match network_range_rs {
             Ok(cidr) => cidr,
             Err(err) => {
@@ -271,14 +267,15 @@ impl FromStr for Cidr {
         let mask_str = split
             .next()
             .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "missing the mask of the CIDR"))?;
-        let mask: net::IpAddr = mask_str.parse().or_else(
-            |_| -> Result<_, Box<error::Error + Send + Sync>> {
-                let bits: u32 = mask_str.parse()?;
-                Ok(net::IpAddr::V4(net::Ipv4Addr::from(
-                    !((0x8000_0000 >> (bits - 1)) - 1),
-                )))
-            },
-        )?;
+        let mask: net::IpAddr =
+            mask_str
+                .parse()
+                .or_else(|_| -> Result<_, Box<error::Error + Send + Sync>> {
+                    let bits: u32 = mask_str.parse()?;
+                    Ok(net::IpAddr::V4(net::Ipv4Addr::from(
+                        !((0x8000_0000 >> (bits - 1)) - 1),
+                    )))
+                })?;
         Ok(Cidr { addr, mask })
     }
 }

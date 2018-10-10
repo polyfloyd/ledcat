@@ -235,8 +235,7 @@ fn main() {
             "none" => Some(Correction::none()),
             "srgb" => Some(Correction::srgb(255, 255, 255)),
             _ => None,
-        })
-        .unwrap_or_else(|| output.color_correction());
+        }).unwrap_or_else(|| output.color_correction());
     let dim = (matches.value_of("dim").unwrap().parse::<f32>().unwrap() * 255.0).round() as u8;
 
     let frame_interval = matches
@@ -254,8 +253,7 @@ fn main() {
         .map(|f| match f {
             "-" => "/dev/stdin",
             f => f,
-        })
-        .collect();
+        }).collect();
     let clear_timeout = frame_interval.map(|t| t * 2).unwrap_or_else(|| {
         let ms = matches
             .value_of("clear-timeout")
@@ -405,8 +403,7 @@ fn transposition_table(
                         }
                         (name, _) => Err(format!("Unknown transposition: {}", name)),
                     }
-                })
-                .collect()
+                }).collect()
         );
     Ok((0..dimensions.size())
         .map(|index| transpositions.transpose(index))

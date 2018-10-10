@@ -42,8 +42,7 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
                 .validator(validate_grayscale)
                 .default_value("31")
                 .help("Set the 5-bit grayscale for all pixels"),
-        )
-        .arg(
+        ).arg(
             clap::Arg::with_name("spidev-clock")
                 .long("spidev-clock")
                 .takes_value(true)
