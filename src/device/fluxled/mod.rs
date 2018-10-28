@@ -79,7 +79,7 @@ pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<
     let bulbs: Vec<_> = args
         .values_of("target")
         .unwrap()
-        .map(|addr| Bulb::connect(addr.parse().unwrap()).unwrap())
+        .map(|addr| Bulb::new(addr.parse().unwrap()))
         .collect();
 
     let dev = Box::new(generic::Generic {
@@ -235,19 +235,19 @@ impl Cidr {
             })
             // Pick the first interface that matches our criteria.
             .next()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Unable to determine default network"))
+            .ok_or_else(|| {
+                io::Error::new(io::ErrorKind::Other, "Unable to determine default network")
+            })
     }
 
-    #[cfg(
-        any(
-            target_os = "dragonfly",
-            target_os = "freebsd",
-            target_os = "ios",
-            target_os = "macos",
-            target_os = "netbsd",
-            target_os = "openbsd"
-        )
-    )]
+    #[cfg(any(
+        target_os = "dragonfly",
+        target_os = "freebsd",
+        target_os = "ios",
+        target_os = "macos",
+        target_os = "netbsd",
+        target_os = "openbsd"
+    ))]
     fn default_interface() -> io::Result<Cidr> {
         Err(io::Error::new(
             io::ErrorKind::Other,

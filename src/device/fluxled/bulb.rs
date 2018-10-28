@@ -5,14 +5,27 @@ use std::*;
 const PORT: u16 = 5577;
 
 pub struct Bulb {
-    conn: net::TcpStream,
+    conn: Option<net::TcpStream>,
+    ip: net::IpAddr,
 }
 
 impl Bulb {
-    pub fn connect(ip: net::IpAddr) -> io::Result<Bulb> {
-        let conn = net::TcpStream::connect((ip, PORT)).unwrap();
+    pub fn new(ip: net::IpAddr) -> Bulb {
+        let mut b = Bulb { conn: None, ip };
+        // Try to set up an initial connection.
+        let _ = b.connection();
+        b
+    }
+
+    fn connection(&mut self) -> io::Result<&mut net::TcpStream> {
+        if let Some(ref mut conn) = self.conn {
+            return Ok(conn);
+        }
+
+        let conn = net::TcpStream::connect((self.ip, PORT))?;
         conn.set_read_timeout(Some(time::Duration::from_millis(100)))?;
-        Ok(Bulb { conn })
+        self.conn = Some(conn);
+        return Ok(self.conn.as_mut().unwrap());
     }
 
     pub fn set_constant_color(&mut self, pix: &Pixel) -> io::Result<()> {
@@ -25,9 +38,17 @@ impl Bulb {
     }
 
     fn send_with_checksum(&mut self, data: &[u8]) -> io::Result<()> {
-        let checksum = data.iter().fold(0, |accum, b| accum + u32::from(*b)) as u8;
-        let buf: Vec<u8> = data.iter().cloned().chain(iter::once(checksum)).collect();
-        self.conn.write_all(&buf)
+        let rs = if let Ok(conn) = self.connection() {
+            let checksum = data.iter().fold(0, |accum, b| accum + u32::from(*b)) as u8;
+            let buf: Vec<u8> = data.iter().cloned().chain(iter::once(checksum)).collect();
+            conn.write_all(&buf)
+        } else {
+            Ok(())
+        };
+        if rs.is_err() {
+            self.conn = None;
+        }
+        return rs;
     }
 }
 
@@ -48,11 +69,11 @@ impl io::Write for Display {
 
     fn flush(&mut self) -> io::Result<()> {
         for (bulb, chunk) in self.bulbs.iter_mut().zip(self.buf.chunks(3)) {
-            bulb.set_constant_color(&Pixel {
+            let _ = bulb.set_constant_color(&Pixel {
                 r: chunk[0],
                 g: chunk[1],
                 b: chunk[2],
-            })?;
+            });
         }
         self.buf.clear();
         Ok(())
