@@ -21,6 +21,7 @@ fn calling_generic_pipe() {
         .with_args(&["--geometry", "3", "--driver", "none", "generic"])
         .stdin(data)
         //.stderr().is("") TODO: https://github.com/killercup/assert_cli/issues/45
-        .stdout().is(data)
+        .stdout()
+        .is(data)
         .unwrap();
 }
