@@ -23,7 +23,7 @@ clap = "2.32.0"
 derive-error = "0.0.4"
 gpio = { path = "components/gpio", version = "0.3.0" }
 net2 = "0.2.32"
-nix = "0.11.0"
+nix = "0.12.0"
 regex = "1.0.2"
 
 [dev-dependencies]
