@@ -11,11 +11,7 @@ pub mod generic;
 pub mod hexws2811;
 pub mod hub75;
 pub mod lpd8806;
-#[cfg(all(
-    not(feature = "ci"),
-    target_arch = "arm",
-    target_os = "linux"
-))]
+#[cfg(all(not(feature = "ci"), target_arch = "arm", target_os = "linux"))]
 pub mod rpi_led_matrix;
 pub mod simulator;
 pub mod sk9822;
@@ -133,11 +129,7 @@ pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, FromCommandFn)> {
         (hexws2811::command(), hexws2811::from_command),
         (hub75::command(), hub75::from_command),
         (lpd8806::command(), lpd8806::from_command),
-        #[cfg(all(
-            not(feature = "ci"),
-            target_arch = "arm",
-            target_os = "linux"
-        ))]
+        #[cfg(all(not(feature = "ci"), target_arch = "arm", target_os = "linux"))]
         (rpi_led_matrix::command(), rpi_led_matrix::from_command),
         (simulator::command(), simulator::from_command),
         (sk9822::command(), sk9822::from_command),

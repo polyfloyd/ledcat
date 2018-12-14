@@ -157,7 +157,8 @@ fn main() {
                     Ok(e) => Some(e),
                 },
                 v => Some(v),
-            }.and_then(|v| v.parse().ok())
+            }
+            .and_then(|v| v.parse().ok())
         },
     };
     let output: Box<Output> = {
@@ -235,7 +236,8 @@ fn main() {
             "none" => Some(Correction::none()),
             "srgb" => Some(Correction::srgb(255, 255, 255)),
             _ => None,
-        }).unwrap_or_else(|| output.color_correction());
+        })
+        .unwrap_or_else(|| output.color_correction());
     let dim = (matches.value_of("dim").unwrap().parse::<f32>().unwrap() * 255.0).round() as u8;
 
     let frame_interval = matches
@@ -253,7 +255,8 @@ fn main() {
         .map(|f| match f {
             "-" => "/dev/stdin",
             f => f,
-        }).collect();
+        })
+        .collect();
     let clear_timeout = frame_interval.map(|t| t * 2).unwrap_or_else(|| {
         let ms = matches
             .value_of("clear-timeout")
@@ -371,40 +374,40 @@ fn transposition_table(
     dimensions: &Dimensions,
     operations: Vec<&str>,
 ) -> Result<Vec<usize>, String> {
-    let transpositions: Vec<Box<Transposition>> =
-        try!(
-            operations
-                .into_iter()
-                .map(|name| -> Result<Box<Transposition>, String> {
-                    match (name, *dimensions) {
-                        ("reverse", dim) => Ok(Box::from(Reverse { length: dim.size() })),
-                        ("zigzag_x", Dimensions::Two(w, h))
-                        | ("zigzag_y", Dimensions::Two(w, h)) => Ok(Box::from(Zigzag {
-                            width: w,
-                            height: h,
-                            major_axis: match name.chars().last().unwrap() {
-                                'x' => Axis::X,
-                                'y' => Axis::Y,
-                                _ => unreachable!(),
-                            },
-                        })),
-                        ("mirror_x", Dimensions::Two(w, h))
-                        | ("mirror_y", Dimensions::Two(w, h)) => Ok(Box::from(Mirror {
-                            width: w,
-                            height: h,
-                            axis: match name.chars().last().unwrap() {
-                                'x' => Axis::X,
-                                'y' => Axis::Y,
-                                _ => unreachable!(),
-                            },
-                        })),
-                        (name, Dimensions::One(_)) => {
-                            Err(format!("{} requires 2D geometry to be specified", name))
-                        }
-                        (name, _) => Err(format!("Unknown transposition: {}", name)),
-                    }
-                }).collect()
-        );
+    let transpositions: Vec<Box<Transposition>> = try!(operations
+        .into_iter()
+        .map(|name| -> Result<Box<Transposition>, String> {
+            match (name, *dimensions) {
+                ("reverse", dim) => Ok(Box::from(Reverse { length: dim.size() })),
+                ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
+                    Ok(Box::from(Zigzag {
+                        width: w,
+                        height: h,
+                        major_axis: match name.chars().last().unwrap() {
+                            'x' => Axis::X,
+                            'y' => Axis::Y,
+                            _ => unreachable!(),
+                        },
+                    }))
+                }
+                ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
+                    Ok(Box::from(Mirror {
+                        width: w,
+                        height: h,
+                        axis: match name.chars().last().unwrap() {
+                            'x' => Axis::X,
+                            'y' => Axis::Y,
+                            _ => unreachable!(),
+                        },
+                    }))
+                }
+                (name, Dimensions::One(_)) => {
+                    Err(format!("{} requires 2D geometry to be specified", name))
+                }
+                (name, _) => Err(format!("Unknown transposition: {}", name)),
+            }
+        })
+        .collect());
     Ok((0..dimensions.size())
         .map(|index| transpositions.transpose(index))
         .collect())

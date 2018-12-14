@@ -42,7 +42,8 @@ impl Device for Ws2812 {
                     ((obits >> 8) & 0xff) as u8,
                     (obits & 0xff) as u8,
                 ]
-            }).collect();
+            })
+            .collect();
         writer.write_all(&buf)?;
         thread::sleep(time::Duration::new(0, 50_000)); // Sleep for 50µs to reset.
         Ok(())

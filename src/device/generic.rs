@@ -34,7 +34,8 @@ impl Device for Generic {
                             (pix.r & 0xf8) | (pix.g >> 5),
                             (pix.g & 0x08) << 5 | (pix.b >> 3),
                         ]
-                    }).collect();
+                    })
+                    .collect();
                 writer.write_all(&buf)?;
             }
             Format::RGB12 => {
@@ -47,7 +48,8 @@ impl Device for Generic {
                             (a.b & 0xf0) | (b.r >> 4),
                             (b.g & 0xf0) | (b.b >> 4),
                         ]
-                    }).collect();
+                    })
+                    .collect();
                 writer.write_all(&buf)?;
             }
         }

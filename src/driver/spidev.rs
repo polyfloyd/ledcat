@@ -50,6 +50,7 @@ pub fn is_spidev(path: &path::Path) -> bool {
         r"^/dev/spidev\d+\.\d+$",
         r"^/sys/devices/.+/spi\d\.\d$",
         r"^/sys/class/devices/.+/spi\d\.\d$",
-    ]).unwrap();
+    ])
+    .unwrap();
     devs.is_match(path.to_str().unwrap())
 }
