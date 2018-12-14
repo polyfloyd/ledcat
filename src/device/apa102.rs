@@ -1,6 +1,6 @@
+use crate::color::*;
+use crate::device::*;
 use clap;
-use color::*;
-use device::*;
 use std::io;
 
 pub struct Apa102 {

@@ -1,6 +1,6 @@
+use crate::color::*;
+use crate::device::*;
 use clap;
-use color::*;
-use device::*;
 use gpio::sysfs::SysFsGpioOutput;
 use gpio::GpioOut;
 use std::io;

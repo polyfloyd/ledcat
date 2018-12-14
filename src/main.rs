@@ -1,18 +1,18 @@
-extern crate byteorder;
-extern crate clap;
 #[macro_use]
 extern crate derive_error;
-extern crate gpio;
-extern crate net2;
-#[macro_use]
-extern crate nix;
-extern crate regex;
 
-use color::*;
-use device::*;
-use driver::*;
-use input::geometry::*;
-use input::*;
+#[macro_use]
+mod util;
+mod color;
+mod device;
+mod driver;
+mod input;
+
+use crate::color::*;
+use crate::device::*;
+use crate::driver::*;
+use crate::input::geometry::*;
+use crate::input::*;
 use std::borrow::Borrow;
 use std::collections;
 use std::env;
@@ -23,13 +23,6 @@ use std::process;
 use std::sync::mpsc;
 use std::thread;
 use std::time;
-
-#[macro_use]
-mod util;
-mod color;
-mod device;
-mod driver;
-mod input;
 
 fn main() {
     let mut cli = clap::App::new("ledcat")
@@ -374,13 +367,13 @@ fn transposition_table(
     dimensions: &Dimensions,
     operations: Vec<&str>,
 ) -> Result<Vec<usize>, String> {
-    let transpositions: Vec<Box<Transposition>> = try!(operations
+    let rs: Result<Vec<_>, _> = operations
         .into_iter()
         .map(|name| -> Result<Box<Transposition>, String> {
             match (name, *dimensions) {
-                ("reverse", dim) => Ok(Box::from(Reverse { length: dim.size() })),
+                ("reverse", dim) => Ok(Box::new(Reverse { length: dim.size() })),
                 ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
-                    Ok(Box::from(Zigzag {
+                    Ok(Box::new(Zigzag {
                         width: w,
                         height: h,
                         major_axis: match name.chars().last().unwrap() {
@@ -391,7 +384,7 @@ fn transposition_table(
                     }))
                 }
                 ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
-                    Ok(Box::from(Mirror {
+                    Ok(Box::new(Mirror {
                         width: w,
                         height: h,
                         axis: match name.chars().last().unwrap() {
@@ -407,7 +400,8 @@ fn transposition_table(
                 (name, _) => Err(format!("Unknown transposition: {}", name)),
             }
         })
-        .collect());
+        .collect();
+    let transpositions = rs?;
     Ok((0..dimensions.size())
         .map(|index| transpositions.transpose(index))
         .collect())

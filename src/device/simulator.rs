@@ -1,5 +1,5 @@
+use crate::device::*;
 use clap;
-use device::*;
 use std::io::Write;
 
 pub struct AnsiDisplay {

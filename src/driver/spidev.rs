@@ -1,5 +1,6 @@
-use device::*;
-use driver;
+use crate::device::*;
+use crate::driver;
+use nix::{convert_ioctl_res, ioc, ioctl_write_buf, request_code_write};
 use regex;
 use std::fs;
 use std::os::unix::io::AsRawFd;

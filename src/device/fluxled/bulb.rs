@@ -1,4 +1,4 @@
-use color::*;
+use crate::color::*;
 use std::io::Write;
 use std::*;
 

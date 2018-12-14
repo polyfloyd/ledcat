@@ -2,6 +2,7 @@
 name = "ledcat"
 description = "Control lots of LED's over lots of protocols"
 version = "0.1.5"
+edition = "2018"
 repository = "https://github.com/polyfloyd/ledcat"
 authors = ["polyfloyd <floyd@polyfloyd.net>"]
 readme = "README.md"

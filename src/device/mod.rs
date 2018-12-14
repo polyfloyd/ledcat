@@ -1,7 +1,7 @@
+use crate::color::*;
+use crate::driver::*;
+use crate::geometry::*;
 use clap;
-use color::*;
-use driver::*;
-use geometry::*;
 use std::io;
 use std::ops::{Deref, DerefMut};
 
@@ -24,7 +24,7 @@ pub mod ws2812;
 pub trait Output: Send {
     fn color_correction(&self) -> Correction;
 
-    fn output_frame(&mut self, &[Pixel]) -> io::Result<()>;
+    fn output_frame(&mut self, frame: &[Pixel]) -> io::Result<()>;
 }
 
 impl<D, W> Output for (D, W)
@@ -57,7 +57,7 @@ impl Output for Box<Output> {
 /// device.
 pub trait Device: Send {
     fn color_correction(&self) -> Correction;
-    fn write_frame(&self, &mut io::Write, &[Pixel]) -> io::Result<()>;
+    fn write_frame(&self, w: &mut io::Write, frame: &[Pixel]) -> io::Result<()>;
 
     fn spidev_config(&self) -> Option<spidev::Config> {
         None

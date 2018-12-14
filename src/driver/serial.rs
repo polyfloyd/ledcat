@@ -1,4 +1,4 @@
-use driver;
+use crate::driver;
 use nix::sys::termios;
 use std::fs;
 use std::os::unix::io::AsRawFd;

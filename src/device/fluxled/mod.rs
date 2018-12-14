@@ -1,8 +1,8 @@
 mod bulb;
 
 use self::bulb::*;
+use crate::device::*;
 use clap;
-use device::*;
 use net2;
 use net2::unix::UnixUdpBuilderExt;
 use nix;
