@@ -47,7 +47,14 @@ fn main() {
         .arg(clap::Arg::with_name("linger")
             .short("l")
             .long("linger")
-            .help("Keep trying to read from the input(s) after EOF is reached"))
+            .help("[deprecated] Keep trying to read from the input(s) after EOF is reached"))
+        .arg(clap::Arg::with_name("exit")
+            .short("e")
+            .long("exit")
+            .takes_value(true)
+            .possible_values(&["never", "one", "all"])
+            .default_value("all")
+            .help("Set the exit condition"))
         .arg(clap::Arg::with_name("clear-timeout")
             .long("clear-timeout")
             .takes_value(true)
@@ -239,10 +246,22 @@ fn main() {
     let single_frame = matches.is_present("single-frame");
 
     let inputs = matches.values_of("input").unwrap();
-    let input_eof = if matches.is_present("linger") {
-        select::WhenEOF::Retry
-    } else {
-        select::WhenEOF::Close
+    let exit_condition = {
+        let e = {
+            matches.value_of("exit").unwrap_or_else(|| {
+                if matches.is_present("linger") {
+                    "never"
+                } else {
+                    "all"
+                }
+            })
+        };
+        match e {
+            "never" => select::ExitCondition::Never,
+            "one" => select::ExitCondition::OneClosed,
+            "all" => select::ExitCondition::All,
+            _ => unreachable!(),
+        }
     };
     let files = inputs
         .map(|f| match f {
@@ -257,9 +276,13 @@ fn main() {
             .unwrap_or(100);
         time::Duration::new(0, ms * 1_000_000)
     });
-    let input =
-        select::Reader::from_files(files, dimensions.size() * 3, input_eof, Some(clear_timeout))
-            .unwrap();
+    let input = select::Reader::from_files(
+        files,
+        dimensions.size() * 3,
+        exit_condition,
+        Some(clear_timeout),
+    )
+    .unwrap();
 
     let _ = pipe_frames(
         input,

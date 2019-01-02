@@ -8,9 +8,10 @@ use std::thread;
 use std::time;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum WhenEOF {
-    Close,
-    Retry,
+pub enum ExitCondition {
+    Never,
+    OneClosed,
+    All,
 }
 
 pub trait ReadFd: io::Read + AsRawFd {}
@@ -18,7 +19,7 @@ pub trait ReadFd: io::Read + AsRawFd {}
 impl<T> ReadFd for T where T: io::Read + AsRawFd {}
 
 pub struct Reader {
-    when_eof: WhenEOF,
+    exit_condition: ExitCondition,
 
     inputs: Vec<Box<ReadFd + Send>>,
     // The number of bytes after which another input is selected.
@@ -35,7 +36,7 @@ impl Reader {
     pub fn from_files<P>(
         filenames: Vec<P>,
         switch_after: usize,
-        when_eof: WhenEOF,
+        exit_condition: ExitCondition,
         clear_timeout: Option<time::Duration>,
     ) -> io::Result<Reader>
     where
@@ -57,7 +58,7 @@ impl Reader {
                     // poll(2) is used to check whether data is available.
                     open_opts.custom_flags(fcntl::OFlag::O_NONBLOCK.bits());
 
-                    if when_eof == WhenEOF::Retry {
+                    if exit_condition == ExitCondition::Never {
                         // When the first program writing to the FIFO closes the writing end, poll will
                         // immediately return with a POLLHUP for the respective reading end because all
                         // writing ends have been closed. If we open the FIFO for writing ourselves,
@@ -70,13 +71,18 @@ impl Reader {
                 Ok(Box::<ReadFd + Send>::from(Box::new(file)))
             })
             .collect();
-        Ok(Reader::from(files?, switch_after, when_eof, clear_timeout))
+        Ok(Reader::from(
+            files?,
+            switch_after,
+            exit_condition,
+            clear_timeout,
+        ))
     }
 
     pub fn from(
         inputs: Vec<Box<ReadFd + Send>>,
         switch_after: usize,
-        when_eof: WhenEOF,
+        exit_condition: ExitCondition,
         clear_timeout: Option<time::Duration>,
     ) -> Reader {
         assert_ne!(inputs.len(), 0);
@@ -86,7 +92,7 @@ impl Reader {
         Reader {
             switch_after,
             buffers,
-            when_eof,
+            exit_condition,
             inputs,
             current: io::Cursor::new(Vec::new()),
             clear_timeout,
@@ -98,7 +104,7 @@ impl io::Read for Reader {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.current.position() == self.current.get_ref().len() as u64 {
             // The end of the current buffer has been reached, fetch more data.
-            loop {
+            let ready_index = loop {
                 // Perform a poll to see if there are any inputs ready for reading.
                 let mut poll_fds: Vec<_> = self
                     .inputs
@@ -149,10 +155,16 @@ impl io::Read for Reader {
                     }
                 }
 
+                let close = match self.exit_condition {
+                    ExitCondition::Never => false,
+                    ExitCondition::OneClosed => num_open < poll_fds.len() && ready_index.is_none(),
+                    ExitCondition::All => num_open == 0,
+                };
+                if close {
+                    return Ok(0);
+                }
+
                 if num_open == 0 {
-                    if self.when_eof == WhenEOF::Close {
-                        return Ok(0);
-                    }
                     // Prevent a busy wait for inputs that make poll return immediately.
                     let wait = self
                         .clear_timeout
@@ -161,13 +173,13 @@ impl io::Read for Reader {
                 }
 
                 if let Some(i) = ready_index {
-                    let tail = self.buffers[i].split_off(self.switch_after);
-                    self.buffers.push(tail); // Later moved to index i by swap_remove.
-                    let buf = self.buffers.swap_remove(i);
-                    self.current = io::Cursor::new(buf);
-                    break;
+                    break i;
                 }
-            }
+            };
+            let tail = self.buffers[ready_index].split_off(self.switch_after);
+            self.buffers.push(tail); // Later moved to index i by swap_remove.
+            let buf = self.buffers.swap_remove(ready_index);
+            self.current = io::Cursor::new(buf);
         }
         self.current.read(buf)
     }
@@ -246,7 +258,7 @@ mod tests {
         let mut reader = Reader::from(
             vec![new_iter_reader(testdata.clone().into_iter())],
             len,
-            WhenEOF::Close,
+            ExitCondition::All,
             None,
         );
 
@@ -271,7 +283,7 @@ mod tests {
                 .map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<ReadFd + Send>)
                 .collect(),
             len,
-            WhenEOF::Close,
+            ExitCondition::All,
             None,
         );
 
@@ -288,14 +300,31 @@ mod tests {
 
     #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
     #[test]
-    fn read_eof() {
+    fn read_single_eof() {
+        let mut reader = Reader::from(
+            vec![
+                new_iter_reader(vec![0; 8192].into_iter()),
+                new_iter_reader(iter::empty()),
+            ],
+            1,
+            ExitCondition::All,
+            None,
+        );
+        timeout!(time::Duration::new(10, 0), {
+            assert_eq!(8192, io::copy(&mut reader, &mut io::sink()).unwrap());
+        });
+    }
+
+    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[test]
+    fn read_all_eof() {
         let mut reader = Reader::from(
             vec![
                 new_iter_reader(iter::empty()),
                 new_iter_reader(iter::empty()),
             ],
             1,
-            WhenEOF::Close,
+            ExitCondition::All,
             None,
         );
         timeout!(time::Duration::new(10, 0), {
@@ -310,7 +339,7 @@ mod tests {
         let mut reader = Reader::from(
             vec![new_iter_reader(iter::empty())],
             1,
-            WhenEOF::Retry,
+            ExitCondition::Never,
             None,
         );
         timeout!(time::Duration::new(0, 100_000_000), {
@@ -330,8 +359,13 @@ mod tests {
         unistd::mkfifo(&fifo1_path, Mode::from_bits(0o666).unwrap()).unwrap();
         unistd::mkfifo(&fifo2_path, Mode::from_bits(0o666).unwrap()).unwrap();
 
-        let mut reader =
-            Reader::from_files(vec![&fifo1_path, &fifo2_path], len, WhenEOF::Close, None).unwrap();
+        let mut reader = Reader::from_files(
+            vec![&fifo1_path, &fifo2_path],
+            len,
+            ExitCondition::All,
+            None,
+        )
+        .unwrap();
         let mut fifo1 = fs::OpenOptions::new()
             .write(true)
             .open(&fifo1_path)
@@ -377,7 +411,7 @@ mod tests {
         let fifo_path = tmp.path().join("fifo");
         unistd::mkfifo(&fifo_path, Mode::from_bits(0o666).unwrap()).unwrap();
         let mut reader =
-            Reader::from_files(vec![&fifo_path], len, WhenEOF::Close, Some(timeout)).unwrap();
+            Reader::from_files(vec![&fifo_path], len, ExitCondition::All, Some(timeout)).unwrap();
         let mut fifo = fs::OpenOptions::new().write(true).open(&fifo_path).unwrap();
 
         let thread = thread::spawn(move || {
