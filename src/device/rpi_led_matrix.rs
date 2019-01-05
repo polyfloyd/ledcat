@@ -1,5 +1,6 @@
+use crate::device::*;
 use clap;
-use device::*;
+use librgbmatrix_sys::*;
 use std::ffi::CString;
 use std::mem;
 use std::ptr;
@@ -205,7 +206,7 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
             options.led_rgb_sequence = s.as_ptr() as _;
         }
 
-        let led_matrix = led_matrix_create_from_options(&options, &0, ptr::null());
+        let led_matrix = led_matrix_create_from_options(&mut options, &mut 0, ptr::null_mut());
         if led_matrix.is_null() {
             return Err(io::Error::new(
                 io::ErrorKind::Other,
@@ -220,47 +221,4 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
             height,
         })))
     }
-}
-
-#[repr(C, packed)]
-struct RGBLedMatrixOptions {
-    hardware_mapping: *const u8,
-    rows: i32,
-    cols: i32,
-    chain_length: i32,
-    parallel: i32,
-    pwm_bits: i32,
-    pwm_lsb_nanoseconds: i32,
-    pwm_dither_bits: i32,
-    brightness: i32,
-    scan_mode: i32,
-    row_address_type: i32,
-    multiplexing: i32,
-    led_rgb_sequence: *const u8,
-    pixel_mapper_config: *const u8,
-    bitfield: u8,
-    // disable_hardware_pulsing
-    // show_refresh_rate
-    // inverse_colors
-}
-
-enum RGBLedMatrix {}
-
-enum LedCanvas {}
-
-extern "C" {
-    fn led_matrix_create_from_options(
-        options: *const RGBLedMatrixOptions,
-        argc: *const i32,
-        argv: *const *mut *mut u8,
-    ) -> *mut RGBLedMatrix;
-    fn led_matrix_delete(matrix: *mut RGBLedMatrix);
-    fn led_matrix_get_canvas(matrix: *mut RGBLedMatrix) -> *mut LedCanvas;
-    fn led_matrix_create_offscreen_canvas(matrix: *mut RGBLedMatrix) -> *mut LedCanvas;
-    fn led_matrix_swap_on_vsync(
-        matrix: *mut RGBLedMatrix,
-        canvas: *mut LedCanvas,
-    ) -> *mut LedCanvas;
-    fn led_canvas_set_pixel(canvas: *mut LedCanvas, x: i32, y: i32, r: u8, g: u8, b: u8);
-    fn led_canvas_clear(canvas: *mut LedCanvas);
 }
