@@ -3,9 +3,9 @@
 //! Uses filesystem operations to control GPIO ports. Very portable (across
 //! devices running Linux), but incurs quite a bit of syscall overhead.
 
-use std::{fs, io};
-use std::io::Write;
 use super::{GpioOut, GpioValue};
+use std::io::Write;
+use std::{fs, io};
 
 /// `/sys`-fs based GPIO output
 #[derive(Debug)]
@@ -50,10 +50,10 @@ impl SysFsGpioOutput {
         let sysfp = fs::File::create(format!("/sys/class/gpio/gpio{}/value", gpio_num))?;
 
         Ok(SysFsGpioOutput {
-               gpio_num: gpio_num,
-               sysfp: sysfp,
-               current_value: GpioValue::Low,
-           })
+            gpio_num: gpio_num,
+            sysfp: sysfp,
+            current_value: GpioValue::Low,
+        })
     }
 }
 

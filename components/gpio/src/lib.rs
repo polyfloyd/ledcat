@@ -24,7 +24,11 @@ pub enum GpioValue {
 
 impl From<bool> for GpioValue {
     fn from(val: bool) -> GpioValue {
-        if val { GpioValue::High } else { GpioValue::Low }
+        if val {
+            GpioValue::High
+        } else {
+            GpioValue::Low
+        }
     }
 }
 
