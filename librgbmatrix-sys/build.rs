@@ -5,10 +5,6 @@ use std::fs;
 use std::path::Path;
 
 fn main() {
-    if env::var("CARGO_FEATURE_CI").is_ok() {
-        return;
-    }
-
     let out_dir = env::var("OUT_DIR").unwrap().to_string();
     let lib_dir = "./vendor";
 
