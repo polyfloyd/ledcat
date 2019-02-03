@@ -60,7 +60,7 @@ fn main() {
             .takes_value(true)
             .validator(regex_validator!(r"^[1-9]\d*$"))
             .conflicts_with("framerate")
-            .help("Sets a timeout in milliseconds after which partially read frames are deleted.\
+            .help("Sets a timeout in milliseconds after which partially read frames are deleted. \
                    If a framerate is set, a timeout is calculated automatically."))
         .arg(clap::Arg::with_name("geometry")
             .short("g")
