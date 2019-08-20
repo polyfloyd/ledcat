@@ -21,7 +21,7 @@ impl Device for Lpd8806 {
         })
     }
 
-    fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
+    fn write_frame(&self, writer: &mut dyn io::Write, pixels: &[Pixel]) -> io::Result<()> {
         // FIXME: The number of zero bytes in the header and trailer should not be magic.
         writer.write_all(&[0x00; 10])?;
         for pix in pixels.iter().rev() {

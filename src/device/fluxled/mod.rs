@@ -261,7 +261,7 @@ impl Cidr {
 }
 
 impl FromStr for Cidr {
-    type Err = Box<error::Error + Send + Sync>;
+    type Err = Box<dyn error::Error + Send + Sync>;
     fn from_str(s: &str) -> Result<Cidr, Self::Err> {
         let mut split = s.split('/');
         let addr: net::IpAddr = split
@@ -274,7 +274,7 @@ impl FromStr for Cidr {
         let mask: net::IpAddr =
             mask_str
                 .parse()
-                .or_else(|_| -> Result<_, Box<error::Error + Send + Sync>> {
+                .or_else(|_| -> Result<_, Box<dyn error::Error + Send + Sync>> {
                     let bits: u32 = mask_str.parse()?;
                     Ok(net::IpAddr::V4(net::Ipv4Addr::from(
                         !((0x8000_0000 >> (bits - 1)) - 1),

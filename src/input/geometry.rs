@@ -43,7 +43,7 @@ pub trait Transposition {
     fn transpose(&self, index: usize) -> usize;
 }
 
-impl Transposition for Vec<Box<Transposition>> {
+impl Transposition for Vec<Box<dyn Transposition>> {
     fn transpose(&self, index: usize) -> usize {
         self.iter().fold(index, |index, tr| tr.transpose(index))
     }
@@ -152,7 +152,7 @@ mod tests {
 
     #[test]
     fn transposition_list() {
-        let tr: Vec<Box<Transposition>> = vec![
+        let tr: Vec<Box<dyn Transposition>> = vec![
             Box::from(Zigzag {
                 width: 4,
                 height: 3,

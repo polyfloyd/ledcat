@@ -161,7 +161,7 @@ fn main() {
             .and_then(|v| v.parse().ok())
         },
     };
-    let output: Box<Output> = {
+    let output: Box<dyn Output> = {
         let result = device_constructors[sub_name](sub_matches.unwrap(), &gargs);
         let from_command = match result {
             Ok(v) => v,
@@ -182,7 +182,7 @@ fn main() {
                     .map(|s: &str| s.to_string())
                     .or_else(|| driver::detect(&output_file))
                     .unwrap_or_else(|| "none".to_string());
-                let output: Box<io::Write + Send> = match driver_name.as_str() {
+                let output: Box<dyn io::Write + Send> = match driver_name.as_str() {
                     "none" => Box::new(
                         fs::OpenOptions::new()
                             .write(true)
@@ -392,7 +392,7 @@ fn transposition_table(
 ) -> Result<Vec<usize>, String> {
     let rs: Result<Vec<_>, _> = operations
         .into_iter()
-        .map(|name| -> Result<Box<Transposition>, String> {
+        .map(|name| -> Result<Box<dyn Transposition>, String> {
             match (name, *dimensions) {
                 ("reverse", dim) => Ok(Box::new(Reverse { length: dim.size() })),
                 ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {

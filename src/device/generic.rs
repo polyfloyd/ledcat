@@ -17,7 +17,7 @@ impl Device for Generic {
         Correction::none()
     }
 
-    fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
+    fn write_frame(&self, writer: &mut dyn io::Write, pixels: &[Pixel]) -> io::Result<()> {
         match self.format {
             Format::RGB24 => {
                 let buf: Vec<u8> = pixels

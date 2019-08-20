@@ -21,7 +21,7 @@ impl<T> ReadFd for T where T: io::Read + AsRawFd {}
 pub struct Reader {
     exit_condition: ExitCondition,
 
-    inputs: Vec<Box<ReadFd + Send>>,
+    inputs: Vec<Box<dyn ReadFd + Send>>,
     // The number of bytes after which another input is selected.
     switch_after: usize,
     // A buffer for each input to be used for partially received content.
@@ -42,7 +42,7 @@ impl Reader {
     where
         P: AsRef<path::Path>,
     {
-        let files: io::Result<Vec<Box<ReadFd + Send>>> = filenames
+        let files: io::Result<Vec<Box<dyn ReadFd + Send>>> = filenames
             .into_iter()
             .map(|filename| {
                 let mut open_opts = fs::OpenOptions::new();
@@ -68,7 +68,7 @@ impl Reader {
                 }
 
                 let file = open_opts.open(&filename)?;
-                Ok(Box::<ReadFd + Send>::from(Box::new(file)))
+                Ok(Box::<dyn ReadFd + Send>::from(Box::new(file)))
             })
             .collect();
         Ok(Reader::from(
@@ -80,7 +80,7 @@ impl Reader {
     }
 
     pub fn from(
-        inputs: Vec<Box<ReadFd + Send>>,
+        inputs: Vec<Box<dyn ReadFd + Send>>,
         switch_after: usize,
         exit_condition: ExitCondition,
         clear_timeout: Option<time::Duration>,
@@ -237,7 +237,7 @@ mod tests {
         Box::new(f)
     }
 
-    fn copy_iter<I: iter::Iterator<Item = u8>>(wr: &mut io::Write, it: I) {
+    fn copy_iter<I: iter::Iterator<Item = u8>>(wr: &mut dyn io::Write, it: I) {
         let v: Vec<u8> = it.collect();
         wr.write_all(&v).unwrap();
         wr.flush().unwrap();
@@ -250,7 +250,7 @@ mod tests {
         let num = 16;
         let testdata: Vec<u8> = (1..num + 1)
             .fold(
-                Box::from(iter::empty()) as Box<iter::Iterator<Item = _>>,
+                Box::from(iter::empty()) as Box<dyn iter::Iterator<Item = _>>,
                 |ch, i| Box::from(ch.chain(iter::repeat(i as u8).take(len))),
             )
             .collect();
@@ -280,7 +280,7 @@ mod tests {
 
         let mut reader = Reader::from(
             (1..num + 1)
-                .map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<ReadFd + Send>)
+                .map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<dyn ReadFd + Send>)
                 .collect(),
             len,
             ExitCondition::All,

@@ -41,7 +41,7 @@ where
     }
 }
 
-impl Output for Box<Output> {
+impl Output for Box<dyn Output> {
     fn color_correction(&self) -> Correction {
         self.deref().color_correction()
     }
@@ -57,7 +57,7 @@ impl Output for Box<Output> {
 /// device.
 pub trait Device: Send {
     fn color_correction(&self) -> Correction;
-    fn write_frame(&self, w: &mut io::Write, frame: &[Pixel]) -> io::Result<()>;
+    fn write_frame(&self, w: &mut dyn io::Write, frame: &[Pixel]) -> io::Result<()>;
 
     fn spidev_config(&self) -> Option<spidev::Config> {
         None
@@ -81,7 +81,7 @@ where
         self.deref().color_correction()
     }
 
-    fn write_frame(&self, out: &mut io::Write, frame: &[Pixel]) -> io::Result<()> {
+    fn write_frame(&self, out: &mut dyn io::Write, frame: &[Pixel]) -> io::Result<()> {
         self.deref().write_frame(out, frame)
     }
 }
@@ -111,9 +111,9 @@ impl GlobalArgs {
 /// configures a new instance from a set of command line arguments.
 pub enum FromCommand {
     /// A device was constructed, but no driver was configured/implemented.
-    Device(Box<Device>),
+    Device(Box<dyn Device>),
     /// An output was constructed, no actions to find a driver are needed.
-    Output(Box<Output>),
+    Output(Box<dyn Output>),
     /// A subcommand was handled, terminate the program without performing IO.
     SubcommandHandled,
 }

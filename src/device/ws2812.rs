@@ -21,7 +21,7 @@ impl Device for Ws2812 {
         })
     }
 
-    fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
+    fn write_frame(&self, writer: &mut dyn io::Write, pixels: &[Pixel]) -> io::Result<()> {
         // 1.25 µs are required to transmit a single bit to the WS2812.
         // The value of a bit is determined by the duty cycle of a single period which
         // transitions from high to low. When this period is 1/3rd high, the bit is 0, when the

@@ -9,7 +9,7 @@ impl Device for HexWS2811 {
         Correction::srgb(255, 255, 255)
     }
 
-    fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
+    fn write_frame(&self, writer: &mut dyn io::Write, pixels: &[Pixel]) -> io::Result<()> {
         for pix in pixels.iter().rev() {
             writer.write_all(&[
                 ((u16::from(pix.g) * 256) & 0xff) as u8,

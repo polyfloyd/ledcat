@@ -14,13 +14,13 @@ pub const PORT: u16 = 6454;
 
 pub struct Unicast {
     socket: net::UdpSocket,
-    target: Box<Target>,
+    target: Box<dyn Target>,
     frame_size: usize,
     frame_buffer: Vec<u8>,
 }
 
 impl Unicast {
-    pub fn to(target: Box<Target>, frame_size: usize) -> io::Result<Unicast> {
+    pub fn to(target: Box<dyn Target>, frame_size: usize) -> io::Result<Unicast> {
         let socket = reuse_bind(("0.0.0.0", PORT))?;
         socket.set_broadcast(true)?;
         Ok(Unicast {

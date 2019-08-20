@@ -1,6 +1,6 @@
 use crate::device::*;
 use crate::driver;
-use nix::{convert_ioctl_res, ioc, ioctl_write_buf, request_code_write};
+use nix::ioctl_write_buf;
 use regex;
 use std::fs;
 use std::os::unix::io::AsRawFd;
@@ -25,7 +25,7 @@ pub struct Config {
     pub speed_hz: u32,
 }
 
-pub fn open(path: &path::Path, dev: &Device) -> Result<fs::File, driver::Error> {
+pub fn open(path: &path::Path, dev: &dyn Device) -> Result<fs::File, driver::Error> {
     let spidev = fs::OpenOptions::new().write(true).open(path)?;
     let fd = spidev.as_raw_fd();
 

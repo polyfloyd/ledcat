@@ -23,7 +23,7 @@ impl Device for Apa102 {
         })
     }
 
-    fn write_frame(&self, writer: &mut io::Write, pixels: &[Pixel]) -> io::Result<()> {
+    fn write_frame(&self, writer: &mut dyn io::Write, pixels: &[Pixel]) -> io::Result<()> {
         writer.write_all(&[0x00; 4])?;
         for pix in pixels {
             writer.write_all(&[0b1110_0000 | self.grayscale, pix.b, pix.g, pix.r])?;
