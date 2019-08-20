@@ -109,7 +109,7 @@ impl io::Read for Reader {
                 let mut poll_fds: Vec<_> = self
                     .inputs
                     .iter()
-                    .map(|inp| poll::PollFd::new(inp.as_raw_fd(), poll::EventFlags::POLLIN))
+                    .map(|inp| poll::PollFd::new(inp.as_raw_fd(), poll::PollFlags::POLLIN))
                     .collect();
                 let timeout = self
                     .clear_timeout
@@ -128,7 +128,7 @@ impl io::Read for Reader {
                 let mut ready_index = None;
                 for (i, p) in poll_fds.iter().enumerate() {
                     let rev = p.revents().unwrap();
-                    if rev.contains(poll::EventFlags::POLLIN) {
+                    if rev.contains(poll::PollFlags::POLLIN) {
                         let buf = &mut self.buffers[i];
                         let buf_used = buf.len();
                         assert_ne!(buf_used, self.switch_after);
@@ -147,9 +147,9 @@ impl io::Read for Reader {
                             break;
                         }
                     } else if rev.intersects(
-                        poll::EventFlags::POLLHUP
-                            | poll::EventFlags::POLLNVAL
-                            | poll::EventFlags::POLLERR,
+                        poll::PollFlags::POLLHUP
+                            | poll::PollFlags::POLLNVAL
+                            | poll::PollFlags::POLLERR,
                     ) {
                         num_open -= 1;
                     }
