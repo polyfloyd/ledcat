@@ -17,10 +17,11 @@ pub struct Unicast {
     target: Box<dyn Target>,
     frame_size: usize,
     frame_buffer: Vec<u8>,
+    universe: u16,
 }
 
 impl Unicast {
-    pub fn to(target: Box<dyn Target>, frame_size: usize) -> io::Result<Unicast> {
+    pub fn to(target: Box<dyn Target>, frame_size: usize, universe: u16) -> io::Result<Unicast> {
         let socket = reuse_bind(("0.0.0.0", PORT))?;
         socket.set_broadcast(true)?;
         Ok(Unicast {
@@ -28,6 +29,7 @@ impl Unicast {
             target,
             frame_size,
             frame_buffer: Vec::with_capacity(frame_size),
+            universe,
         })
     }
 }
@@ -45,7 +47,7 @@ impl io::Write for Unicast {
         }
         let new_buf = self.frame_buffer.split_off(self.frame_size);
         let mut packet = Vec::new();
-        art_dmx_packet(&mut packet, &self.frame_buffer)?;
+        art_dmx_packet(&mut packet, &self.frame_buffer, self.universe)?;
         self.frame_buffer = new_buf;
         for addr in self.target.addresses().iter() {
             self.socket.send_to(&packet, addr)?;
@@ -123,7 +125,7 @@ where
     Ok(())
 }
 
-fn art_dmx_packet<W>(mut wr: W, data: &[u8]) -> io::Result<()>
+fn art_dmx_packet<W>(mut wr: W, data: &[u8], universe: u16) -> io::Result<()>
 where
     W: io::Write,
 {
@@ -139,8 +141,8 @@ where
     wr.write_u8(14)?; // ProtVerLo
     wr.write_u8(0)?; // Sequence
     wr.write_u8(0)?; // Physical
-    wr.write_u8(0)?; // SubUni
-    wr.write_u8(0)?; // Net
+    wr.write_u8((universe & 0xff) as u8)?; // SubUni
+    wr.write_u8((universe >> 8) as u8)?; // Net
     wr.write_u16::<BigEndian>(data.len() as u16)?; // Length
     wr.write_all(data)?; // Data
     Ok(())

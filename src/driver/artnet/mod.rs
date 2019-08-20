@@ -54,6 +54,14 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
                 .conflicts_with_all(&["target", "target-list", "broadcast"])
                 .help("Discover artnet nodes"),
         )
+        .arg(
+            clap::Arg::with_name("universe")
+                .short("u")
+                .long("universe")
+                .validator(regex_validator!(r"^\d+$"))
+                .default_value("0")
+                .help("Discover artnet nodes"),
+        )
 }
 
 pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
@@ -82,8 +90,9 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         eprintln!("Missing artnet target. Please set --target IP or --broadcast");
         return Ok(FromCommand::SubcommandHandled);
     };
+    let universe = args.value_of("universe").unwrap().parse().unwrap();
 
-    let output = Unicast::to(artnet_target, gargs.dimensions()?.size() * 3)?;
+    let output = Unicast::to(artnet_target, gargs.dimensions()?.size() * 3, universe)?;
     Ok(FromCommand::Output(Box::new((dev, output))))
 }
 
