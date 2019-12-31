@@ -1,9 +1,9 @@
 Transposition
 =============
 
-Ledcat shuffle pixels around before outputting them. This can be useful if the
-arrangement of pixels in the output display does match that of the input. With
-the `--transpose` option, you can set one or more operations to apply.
+Ledcat can shuffle pixels around before outputting them. This can be useful if
+the arrangement of pixels in the output display does not match that of the
+input. With the `--transpose` option, you can set one or more operations to apply.
 
 Because some operations are designed to work on 2 dimensional images, Some
 operations need to know the dimensions of the display they are operating on.
@@ -11,7 +11,8 @@ Such operations require the number of pixels to be specified by the
 `--geometry` option as WIDTHxHEIGHT.
 
 ## Reverse
-![Reverse transposition](img/transpose-reverse.svg)
+
+    DEVICE <- X <- X <- X <- X <- X <- X <- X <- X
 
 Applying `--transpose reverse` simply reverses the output image, meaning that
 pixel 0 in the input becomes pixel N-1 in the output, 1 becomes N-2, etc.
@@ -19,7 +20,26 @@ pixel 0 in the input becomes pixel N-1 in the output, 1 becomes N-2, etc.
 Reversing a 2D image is equivalent to rotating by 180 degrees.
 
 ## Zig Zag
-![Zigzagged X-axis transposition](img/transpose-zigzag_x.svg)
+
+X axis:
+
+    DEVICE -> X -> X -> X -> X -> X -> X -> X -> X
+                                                 v
+              X <- X <- X <- X <- X <- X <- X <- X
+              v
+              X -> X -> X -> X -> X -> X -> X -> X
+                                                 v
+              X <- X <- X <- X <- X <- X <- X <- X
+
+Y axis:
+
+    DEVICE -> X    X -> X    X -> X    X -> X    X
+              v    ^    v    ^    v    ^    v    ^
+              X    X    X    X    X    X    X    X
+              v    ^    v    ^    v    ^    v    ^
+              X    X    X    X    X    X    X    X
+              v    ^    v    ^    v    ^    v    ^
+              X -> X    X -> X    X -> X    X -> X
 
 When building a display out of a single LED-strip, it is not uncommon to
 arrange the strips in a repeating pattern that runs from left to right on the
