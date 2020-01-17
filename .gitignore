@@ -2,3 +2,4 @@
 *.swo
 
 /target
+/lib*/target
