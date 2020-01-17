@@ -92,15 +92,19 @@ pub struct GlobalArgs {
 
 impl GlobalArgs {
     pub fn dimensions(&self) -> io::Result<Dimensions> {
-        self.dimensions
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Please set the frame size"))
+        self.dimensions.ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                "Please set the frame size with --geometry",
+            )
+        })
     }
 
     pub fn dimensions_2d(&self) -> io::Result<(usize, usize)> {
         match self.dimensions()? {
             Dimensions::One(_) => Err(io::Error::new(
                 io::ErrorKind::Other,
-                "This device requires 2D geometry",
+                "This device requires 2D geometry, use `WxH` as argument to --geometry",
             )),
             Dimensions::Two(w, h) => Ok((w, h)),
         }
