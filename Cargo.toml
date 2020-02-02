@@ -25,12 +25,12 @@ derive-error = "0.0.4"
 gpio = { path = "components/gpio", version = "0.3.0" }
 librgbmatrix-sys = { path = "librgbmatrix-sys", optional = true }
 net2 = "0.2"
-nix = "0.15"
+nix = "0.16"
 regex = "1"
 
 [dev-dependencies]
 assert_cli = "0.6"
-rand = "0.6"
+rand = "0.7"
 tempdir = "0.3"
 
 [workspace]
