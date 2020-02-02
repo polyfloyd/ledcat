@@ -25,10 +25,10 @@ impl Bulb {
         let conn = net::TcpStream::connect((self.ip, PORT))?;
         conn.set_read_timeout(Some(time::Duration::from_millis(100)))?;
         self.conn = Some(conn);
-        return Ok(self.conn.as_mut().unwrap());
+        Ok(self.conn.as_mut().unwrap())
     }
 
-    pub fn set_constant_color(&mut self, pix: &Pixel) -> io::Result<()> {
+    pub fn set_constant_color(&mut self, pix: Pixel) -> io::Result<()> {
         // For proto:
         // -> [0x81, 0x8a, 0x8b, 0x96]
         // <- [129, 51, 35, 97, 1, 1, 0, 0, 0, 0, 4, 0, 0, 62]
@@ -48,7 +48,7 @@ impl Bulb {
         if rs.is_err() {
             self.conn = None;
         }
-        return rs;
+        rs
     }
 }
 
@@ -69,7 +69,7 @@ impl io::Write for Display {
 
     fn flush(&mut self) -> io::Result<()> {
         for (bulb, chunk) in self.bulbs.iter_mut().zip(self.buf.chunks(3)) {
-            let _ = bulb.set_constant_color(&Pixel {
+            let _ = bulb.set_constant_color(Pixel {
                 r: chunk[0],
                 g: chunk[1],
                 b: chunk[2],

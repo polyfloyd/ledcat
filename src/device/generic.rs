@@ -42,7 +42,7 @@ impl Device for Generic {
                 let buf: Vec<u8> = pixels
                     .chunks(2)
                     .flat_map(|ch| {
-                        let (a, b) = (&ch[0], ch.get(1).map(|p| *p).unwrap_or_default());
+                        let (a, b) = (&ch[0], ch.get(1).cloned().unwrap_or_default());
                         vec![
                             (a.r & 0xf0) | (a.g >> 4),
                             (a.b & 0xf0) | (b.r >> 4),

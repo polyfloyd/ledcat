@@ -9,6 +9,7 @@ pub mod artnet;
 pub mod serial;
 pub mod spidev;
 
+#[allow(clippy::type_complexity)]
 const DRIVER_DETECTORS: &[(&str, fn(&path::Path) -> bool)] =
     &[("serial", serial::is_serial), ("spidev", spidev::is_spidev)];
 
