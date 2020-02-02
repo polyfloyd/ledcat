@@ -1,4 +1,6 @@
 use nix;
+use std::error;
+use std::fmt;
 use std::fs;
 use std::io;
 use std::path;
@@ -36,9 +38,29 @@ fn read_link_recursive<P: AsRef<path::Path>>(path: P) -> io::Result<path::PathBu
     }
 }
 
-#[derive(Debug, Error)]
+#[derive(Debug)]
 pub enum Error {
     DeviceNotSupported,
     Io(io::Error),
     Nix(nix::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl error::Error for Error {}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Error::Io(err)
+    }
+}
+
+impl From<nix::Error> for Error {
+    fn from(err: nix::Error) -> Self {
+        Error::Nix(err)
+    }
 }

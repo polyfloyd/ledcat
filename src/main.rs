@@ -1,7 +1,4 @@
 #[macro_use]
-extern crate derive_error;
-
-#[macro_use]
 mod util;
 mod color;
 mod device;
