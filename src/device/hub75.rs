@@ -2,10 +2,12 @@ use crate::color::*;
 use crate::device::*;
 use clap;
 use gpio::sysfs::SysFsGpioOutput;
-use gpio::GpioOut;
+use gpio::{GpioOut, GpioValue};
 use std::io;
 use std::sync::mpsc;
 use std::thread;
+
+type WorkerGpioOut = GpioOutBuffer<SysFsGpioOutput>;
 
 struct Worker {
     width: usize,
@@ -16,11 +18,11 @@ struct Worker {
     err_tx: mpsc::Sender<io::Error>,
     cur_frame: Vec<Pixel>,
 
-    level_select: Vec<SysFsGpioOutput>,
-    rgb: Vec<[SysFsGpioOutput; 3]>,
-    clock: SysFsGpioOutput,
-    output_enable: SysFsGpioOutput,
-    latch: SysFsGpioOutput,
+    level_select: Vec<WorkerGpioOut>,
+    rgb: Vec<[WorkerGpioOut; 3]>,
+    clock: WorkerGpioOut,
+    output_enable: WorkerGpioOut,
+    latch: WorkerGpioOut,
 }
 
 impl Worker {
@@ -149,15 +151,15 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
     let (width, height) = gargs.dimensions_2d()?;
 
     let pwm_cycles = args.value_of("pwm").unwrap().parse().unwrap();
-    let pins = |name: &str| -> io::Result<Vec<SysFsGpioOutput>> {
+    let pins = |name: &str| -> io::Result<Vec<_>> {
         args.value_of(name)
             .unwrap()
             .split(',')
             .map(|s| s.parse().unwrap())
-            .map(SysFsGpioOutput::new)
+            .map(|num| SysFsGpioOutput::open(num).map(GpioOutBuffer::new))
             .collect()
     };
-    let pin = |name: &str| -> io::Result<SysFsGpioOutput> { Ok(pins(name)?.pop().unwrap()) };
+    let pin = |name: &str| -> io::Result<_> { Ok(pins(name)?.pop().unwrap()) };
 
     let (frame_tx, frame_rx) = mpsc::sync_channel(0);
     let (err_tx, err_rx) = mpsc::channel();
@@ -203,4 +205,38 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         worker.run();
     });
     Ok(FromCommand::Output(Box::new(Hub75 { frame_tx, err_rx })))
+}
+
+struct GpioOutBuffer<T: GpioOut> {
+    gpio: T,
+    state: GpioValue,
+}
+
+impl<T: GpioOut> GpioOutBuffer<T> {
+    fn new(gpio: T) -> Self {
+        Self {
+            gpio,
+            state: GpioValue::Low,
+        }
+    }
+}
+
+impl<T: GpioOut> GpioOut for GpioOutBuffer<T> {
+    type Error = T::Error;
+
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        if self.state != GpioValue::Low {
+            self.gpio.set_low()?;
+            self.state = GpioValue::Low;
+        }
+        Ok(())
+    }
+
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        if self.state != GpioValue::High {
+            self.gpio.set_high()?;
+            self.state = GpioValue::High;
+        }
+        Ok(())
+    }
 }

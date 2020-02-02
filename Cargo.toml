@@ -21,7 +21,7 @@ rpi-led-matrix = [ "librgbmatrix-sys" ]
 [dependencies]
 byteorder = "1"
 clap = "2"
-gpio = { path = "components/gpio", version = "0.3.0" }
+gpio = "0.4"
 librgbmatrix-sys = { path = "librgbmatrix-sys", optional = true }
 net2 = "0.2"
 nix = "0.16"
