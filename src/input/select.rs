@@ -201,7 +201,6 @@ mod tests {
 
     macro_rules! timeout {
         ($timeout:expr, $block:block) => {{
-            #![cfg_attr(feature = "clippy", allow(unit_expr))]
             let (tx, rx) = mpsc::sync_channel(1);
             let thread = thread::spawn(move || {
                 let val = $block;

@@ -149,8 +149,7 @@ where
 }
 
 /// Like `UdpSocket::bind`, but sets the socket reuse flags before binding.
-#[cfg_attr(feature = "clippy", allow(needless_pass_by_value))]
-fn reuse_bind<A: net::ToSocketAddrs>(to_addr: A) -> io::Result<net::UdpSocket> {
+fn reuse_bind(to_addr: impl net::ToSocketAddrs) -> io::Result<net::UdpSocket> {
     let addr = to_addr.to_socket_addrs()?.next().unwrap();
     let fd = io_err!(socket::socket(
         socket::AddressFamily::Inet,

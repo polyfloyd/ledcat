@@ -62,7 +62,6 @@ pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromC
     })))
 }
 
-#[cfg_attr(feature = "clippy", allow(needless_pass_by_value))]
 fn validate_grayscale(v: String) -> Result<(), String> {
     match v.parse::<u8>() {
         Ok(i) => {
