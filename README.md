@@ -1,6 +1,6 @@
 ledcat
 ======
-[![Build Status](https://travis-ci.org/polyfloyd/ledcat.svg)](https://travis-ci.org/polyfloyd/ledcat)
+![CI](https://github.com/polyfloyd/ledcat/workflows/CI/badge.svg)
 [![](https://img.shields.io/crates/v/ledcat.svg)](https://crates.io/crates/ledcat)
 
 Ledcat is simple utility that aims to provide a standard interface for driving

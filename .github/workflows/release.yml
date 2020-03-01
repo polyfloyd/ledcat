@@ -1,0 +1,69 @@
+name: Release
+
+on:
+  push:
+    tags:
+    - 'v*'
+
+jobs:
+
+  release:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+        - arm-unknown-linux-gnueabi
+        - armv7-unknown-linux-gnueabihf
+        - x86_64-unknown-linux-gnu
+        - x86_64-apple-darwin
+        include:
+        - target: arm-unknown-linux-gnueabi
+          os: ubuntu-latest
+          cc: arm-linux-gnueabi
+        - target: armv7-unknown-linux-gnueabihf
+          os: ubuntu-latest
+          cc: arm-linux-gnueabihf
+        - target: x86_64-unknown-linux-gnu
+          os: ubuntu-latest
+        - target: x86_64-apple-darwin
+          os: macos-latest
+
+    needs:
+    - release
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v1
+    - run: rustup update
+    - run: rustup target add ${{ matrix.target }}
+
+    - run: echo '[target.${{ matrix.target }}]' > ~/.cargo/config
+      if: matrix.cc != ''
+    - run: echo 'linker = "${{ matrix.cc }}-gcc"' >> ~/.cargo/config
+      if: matrix.cc != ''
+    - run: sudo apt update && sudo apt install -y gcc-${{ matrix.cc }}
+      if: matrix.cc != ''
+
+    - run: cargo build --release --target=${{ matrix.target }}
+    - run: tar -czf ledcat-${{ matrix.target }}.tar.gz -C ./target/${{ matrix.target }}/release ledcat
+
+    - name: Upload binary to release
+      uses: svenstaro/upload-release-action@v1-release
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: ledcat-${{ matrix.target }}.tar.gz
+        asset_name: ledcat-${{ matrix.target }}.tar.gz
+        tag: ${{ github.ref }}
