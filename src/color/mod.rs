@@ -6,17 +6,25 @@ pub struct Pixel {
 }
 
 pub struct Correction {
-    r: Vec<u8>,
-    g: Vec<u8>,
-    b: Vec<u8>,
+    r: [u8; 256],
+    g: [u8; 256],
+    b: [u8; 256],
+}
+
+fn collect_u8(bytes: impl Iterator<Item = u8>) -> [u8; 256] {
+    let mut buf = [0; 256];
+    for (i, b) in bytes.enumerate() {
+        buf[i] = b;
+    }
+    buf
 }
 
 impl Correction {
     pub fn none() -> Correction {
         Correction {
-            r: (0..=255).collect(),
-            g: (0..=255).collect(),
-            b: (0..=255).collect(),
+            r: collect_u8(0..=255),
+            g: collect_u8(0..=255),
+            b: collect_u8(0..=255),
         }
     }
 
@@ -29,9 +37,9 @@ impl Correction {
             f64::powf((x + 0.055) / (1.0 + 0.055), 2.4)
         };
         let comp = |max| {
-            (0..256)
-                .map(|i| f64::round(srgb(f64::from(i) / 255.0) * f64::from(max)) as u8)
-                .collect()
+            let iter =
+                (0..256).map(|i| f64::round(srgb(f64::from(i) / 255.0) * f64::from(max)) as u8);
+            collect_u8(iter)
         };
         Correction {
             r: comp(max_red),
