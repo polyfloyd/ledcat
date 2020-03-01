@@ -187,13 +187,11 @@ impl io::Read for Reader {
 
 #[cfg(test)]
 mod tests {
-    extern crate rand;
-    extern crate tempdir;
-    use self::rand::distributions::Alphanumeric;
-    use self::rand::Rng;
     use super::*;
     use nix::sys::stat::Mode;
     use nix::unistd;
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
     use std::io::{Read, Seek, Write};
     use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
@@ -214,13 +212,8 @@ mod tests {
         }};
     }
 
-    // FIXME: This function uses memfd, which is not available on Mac OS.
-    // FIXME: The CI env can't handle poll(2) or something.
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
-    fn new_iter_reader<I>(iter: I) -> Box<fs::File>
-    where
-        I: iter::Iterator<Item = u8>,
-    {
+    #[cfg(target_os = "linux")]
+    fn new_iter_reader(iter: impl Iterator<Item = u8>) -> Box<fs::File> {
         use nix::sys::memfd::*;
         let name = rand::thread_rng()
             .sample_iter(&Alphanumeric)
@@ -236,13 +229,13 @@ mod tests {
         Box::new(f)
     }
 
-    fn copy_iter<I: iter::Iterator<Item = u8>>(wr: &mut dyn io::Write, it: I) {
+    fn copy_iter(mut wr: impl io::Write, it: impl Iterator<Item = u8>) {
         let v: Vec<u8> = it.collect();
         wr.write_all(&v).unwrap();
         wr.flush().unwrap();
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_one_input() {
         let len = 100;
@@ -271,7 +264,7 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_multiple_inputs_order() {
         let len = 100;
@@ -297,7 +290,7 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_single_eof() {
         let mut reader = Reader::from(
@@ -314,7 +307,7 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_all_eof() {
         let mut reader = Reader::from(
@@ -331,7 +324,7 @@ mod tests {
         });
     }
 
-    #[cfg(all(target_os = "linux", not(all(feature = "ci", target_arch = "arm"))))]
+    #[cfg(target_os = "linux")]
     #[test]
     #[should_panic(expected = "Timeout expired")]
     fn read_eof_retry() {
@@ -346,7 +339,7 @@ mod tests {
         });
     }
 
-    #[cfg(not(target_os = "macos"))] // FIXME
+    #[cfg(target_os = "linux")]
     #[test]
     fn read_unix_fifo() {
         let len = 10;

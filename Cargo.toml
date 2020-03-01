@@ -15,7 +15,6 @@ travis-ci = { repository = "polyfloyd/ledcat", branch = "master" }
 
 [features]
 default = []
-ci = []
 rpi-led-matrix = [ "librgbmatrix-sys" ]
 
 [dependencies]
