@@ -41,17 +41,14 @@ fn main() {
             .default_value("-")
             .help("The inputs to read from. Read the manual for how inputs are read and \
                    prioritized."))
-        .arg(clap::Arg::with_name("linger")
-            .short("l")
-            .long("linger")
-            .help("[deprecated] Keep trying to read from the input(s) after EOF is reached"))
         .arg(clap::Arg::with_name("exit")
             .short("e")
             .long("exit")
             .takes_value(true)
             .possible_values(&["never", "one", "all"])
             .default_value("all")
-            .help("Set the exit condition"))
+            .help("Set the exit condition. \"one\" and \"all\" indicate the number of files that \
+                should be closed to trigger"))
         .arg(clap::Arg::with_name("clear-timeout")
             .long("clear-timeout")
             .takes_value(true)
@@ -244,18 +241,10 @@ fn main() {
 
     let inputs = matches.values_of("input").unwrap();
     let exit_condition = {
-        let e = matches.value_of("exit").unwrap_or_else(|| {
-            if matches.is_present("linger") {
-                "never"
-            } else {
-                "all"
-            }
-        });
-        match e {
-            "never" => select::ExitCondition::Never,
-            "one" => select::ExitCondition::OneClosed,
-            "all" => select::ExitCondition::All,
-            _ => unreachable!(),
+        match matches.value_of("exit") {
+            Some("never") => select::ExitCondition::Never,
+            Some("one") => select::ExitCondition::OneClosed,
+            Some("all") | Some(_) | None => select::ExitCondition::All,
         }
     };
     let files = inputs

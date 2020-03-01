@@ -64,7 +64,7 @@ mkfifo /tmp/ambient
 mkfifo /tmp/messages
 cat /dev/urandom > /tmp/ambient &
 ./my_messages > /tmp/messages &
-ledcat --input /tmp/ambient /tmp/messages --linger --geometry 30 apa102 > /dev/spidev0.0
+ledcat --input /tmp/ambient /tmp/messages --exit never --geometry 30 apa102 > /dev/spidev0.0
 ```
 
 ### Supported Drivers:

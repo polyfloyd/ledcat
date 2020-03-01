@@ -17,12 +17,12 @@ perl -e 'print "\xff\x00\x00" x 30' | ledcat --geometry 30 <other arguments...>
 ```
 
 ### FIFO's
-It is also possible to offer data to Ledcat by using one or more FIFO's. The
-`--linger` is best used as well, since it tells Ledcat to retry reading when
-you restart the animating program.
+It is also possible to offer data to Ledcat by using one or more FIFO's.
+`--exit never` is best used as well, since it tells Ledcat to retry reading
+when you restart the animating program.
 ```sh
 mkfifo /tmp/ledcat-01 /tmp/ledcat-02 /tmp/ledcat-03
-ledcat --input /tmp/ledcat-01 /tmp/ledcat-02 /tmp/ledcat-03 --linger <other arguments...>
+ledcat --input /tmp/ledcat-01 /tmp/ledcat-02 /tmp/ledcat-03 --exit never <other arguments...>
 ```
 With this setup, Ledcat will prefer frames from the rightmost FIFO which can be
 read from.
