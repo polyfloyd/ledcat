@@ -239,20 +239,18 @@ fn main() {
 
     let frame_interval = matches
         .value_of("framerate")
-        .map(|fps| time::Duration::new(1, 0) / fps.parse::<u32>().unwrap());
+        .map(|fps| time::Duration::from_secs(1) / fps.parse::<u32>().unwrap());
     let single_frame = matches.is_present("single-frame");
 
     let inputs = matches.values_of("input").unwrap();
     let exit_condition = {
-        let e = {
-            matches.value_of("exit").unwrap_or_else(|| {
-                if matches.is_present("linger") {
-                    "never"
-                } else {
-                    "all"
-                }
-            })
-        };
+        let e = matches.value_of("exit").unwrap_or_else(|| {
+            if matches.is_present("linger") {
+                "never"
+            } else {
+                "all"
+            }
+        });
         match e {
             "never" => select::ExitCondition::Never,
             "one" => select::ExitCondition::OneClosed,
@@ -271,7 +269,7 @@ fn main() {
             .value_of("clear-timeout")
             .map(|v| v.parse::<u32>().unwrap())
             .unwrap_or(100);
-        time::Duration::new(0, ms * 1_000_000)
+        time::Duration::from_millis(ms as u64)
     });
     let input = select::Reader::from_files(
         files,

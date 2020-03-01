@@ -74,7 +74,7 @@ pub fn discover() -> sync::mpsc::Receiver<io::Result<(net::SocketAddr, Option<St
 
         let socket = try_or_send!(reuse_bind(("0.0.0.0", PORT)));
         try_or_send!(socket.set_broadcast(true));
-        try_or_send!(socket.set_read_timeout(Some(time::Duration::new(1, 0))));
+        try_or_send!(socket.set_read_timeout(Some(time::Duration::from_secs(1))));
 
         loop {
             // Send out an ArtPoll packet to elicit an ArtPollReply from all devices in the network.

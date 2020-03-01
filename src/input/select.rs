@@ -168,7 +168,7 @@ impl io::Read for Reader {
                     // Prevent a busy wait for inputs that make poll return immediately.
                     let wait = self
                         .clear_timeout
-                        .unwrap_or_else(|| time::Duration::new(0, 10_000_000));
+                        .unwrap_or_else(|| time::Duration::from_millis(10));
                     thread::sleep(wait);
                 }
 
@@ -267,7 +267,7 @@ mod tests {
             reader.read_exact(&mut rd_buf).unwrap();
             assert_eq!(testdata[len * i..len * (i + 1)], rd_buf[..]);
         }
-        timeout!(time::Duration::new(10, 0), {
+        timeout!(time::Duration::from_secs(10), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
     }
@@ -293,7 +293,7 @@ mod tests {
             let expected: Vec<u8> = iter::repeat(i).take(len).collect();
             assert_eq!(expected, rd_buf);
         }
-        timeout!(time::Duration::new(10, 0), {
+        timeout!(time::Duration::from_secs(10), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
     }
@@ -310,7 +310,7 @@ mod tests {
             ExitCondition::All,
             None,
         );
-        timeout!(time::Duration::new(10, 0), {
+        timeout!(time::Duration::from_secs(10), {
             assert_eq!(8192, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
     }
@@ -327,7 +327,7 @@ mod tests {
             ExitCondition::All,
             None,
         );
-        timeout!(time::Duration::new(10, 0), {
+        timeout!(time::Duration::from_secs(10), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
     }
@@ -342,7 +342,7 @@ mod tests {
             ExitCondition::Never,
             None,
         );
-        timeout!(time::Duration::new(0, 100_000_000), {
+        timeout!(time::Duration::from_millis(100), {
             io::copy(&mut reader, &mut io::sink()).unwrap();
         });
     }
@@ -395,7 +395,7 @@ mod tests {
 
         drop(fifo1);
         drop(fifo2);
-        timeout!(time::Duration::new(10, 0), {
+        timeout!(time::Duration::from_secs(10), {
             assert_eq!(0, io::copy(&mut reader, &mut io::sink()).unwrap());
         });
 
@@ -405,7 +405,7 @@ mod tests {
     #[test]
     fn clear_timeout() {
         let len = 10;
-        let timeout = time::Duration::new(0, 100_000_000); // 100ms
+        let timeout = time::Duration::from_millis(100);
 
         let tmp = tempdir::TempDir::new("clear_timeout").unwrap();
         let fifo_path = tmp.path().join("fifo");

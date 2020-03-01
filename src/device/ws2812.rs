@@ -45,7 +45,7 @@ impl Device for Ws2812 {
             })
             .collect();
         writer.write_all(&buf)?;
-        thread::sleep(time::Duration::new(0, 50_000)); // Sleep for 50µs to reset.
+        thread::sleep(time::Duration::from_micros(50)); // Sleep for 50µs to reset.
         Ok(())
     }
 }

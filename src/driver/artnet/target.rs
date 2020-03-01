@@ -77,7 +77,7 @@ impl ListFile {
                     v.dedup();
                 }
 
-                thread::sleep(time::Duration::new(1, 0));
+                thread::sleep(time::Duration::from_secs(1));
             }
         });
 

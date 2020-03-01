@@ -109,7 +109,7 @@ fn artnet_discover() -> io::Result<()> {
             }
             write!(&mut out, "\r{}", ch).unwrap();
             out.flush().unwrap();
-            thread::sleep(time::Duration::new(0, 100_000_000));
+            thread::sleep(time::Duration::from_millis(100));
         }
     });
 

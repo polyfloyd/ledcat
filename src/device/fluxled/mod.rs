@@ -109,7 +109,7 @@ fn tui_discover(network_range: Cidr) -> io::Result<()> {
             }
             write!(&mut out, "\r{}", ch).unwrap();
             out.flush().unwrap();
-            thread::sleep(time::Duration::new(0, 100_000_000));
+            thread::sleep(time::Duration::from_millis(100));
         }
     });
 
@@ -159,7 +159,7 @@ fn discover(
             try_or_send!(b.bind(("0.0.0.0", DISCOVERY_PORT)))
         };
         try_or_send!(socket.set_broadcast(true));
-        try_or_send!(socket.set_read_timeout(Some(time::Duration::new(1, 0))));
+        try_or_send!(socket.set_read_timeout(Some(time::Duration::from_secs(1))));
 
         loop {
             for ip in network_range.addresses() {
