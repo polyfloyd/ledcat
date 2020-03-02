@@ -196,6 +196,7 @@ mod tests {
     use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
     use std::*;
+    use tempfile::tempdir;
 
     macro_rules! timeout {
         ($timeout:expr, $block:block) => {{
@@ -345,7 +346,7 @@ mod tests {
         let len = 10;
         let (pat1, pat2) = (12, 42);
 
-        let tmp = tempdir::TempDir::new("read_unix_fifo").unwrap();
+        let tmp = tempdir().unwrap();
         let fifo1_path = tmp.path().join("fifo1");
         let fifo2_path = tmp.path().join("fifo2");
         unistd::mkfifo(&fifo1_path, Mode::from_bits(0o666).unwrap()).unwrap();
@@ -399,7 +400,7 @@ mod tests {
         let len = 10;
         let timeout = time::Duration::from_millis(100);
 
-        let tmp = tempdir::TempDir::new("clear_timeout").unwrap();
+        let tmp = tempdir().unwrap();
         let fifo_path = tmp.path().join("fifo");
         unistd::mkfifo(&fifo_path, Mode::from_bits(0o666).unwrap()).unwrap();
         let mut reader =
@@ -422,5 +423,6 @@ mod tests {
         copy_iter(&mut fifo, iter::repeat(2).take(len));
 
         thread.join().unwrap();
+        tmp.close().unwrap();
     }
 }
