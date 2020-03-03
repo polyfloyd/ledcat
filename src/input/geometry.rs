@@ -43,7 +43,19 @@ pub trait Transposition {
     fn transpose(&self, index: usize) -> usize;
 }
 
-impl Transposition for Vec<Box<dyn Transposition>> {
+impl<T: Transposition> Transposition for &T {
+    fn transpose(&self, index: usize) -> usize {
+        (*self).transpose(index)
+    }
+}
+
+impl Transposition for Box<dyn Transposition> {
+    fn transpose(&self, index: usize) -> usize {
+        self.as_ref().transpose(index)
+    }
+}
+
+impl<T: Transposition> Transposition for Vec<T> {
     fn transpose(&self, index: usize) -> usize {
         self.iter().fold(index, |index, tr| tr.transpose(index))
     }
@@ -115,11 +127,7 @@ mod tests {
     use super::*;
     use std::*;
 
-    fn transpose_all<T, I>(trans: &T, input: I) -> Vec<usize>
-    where
-        T: Transposition,
-        I: iter::Iterator<Item = usize>,
-    {
+    fn transpose_all(trans: impl Transposition, input: impl Iterator<Item = usize>) -> Vec<usize> {
         input.map(|index| trans.transpose(index)).collect()
     }
 

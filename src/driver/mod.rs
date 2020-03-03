@@ -3,17 +3,17 @@ use std::error;
 use std::fmt;
 use std::fs;
 use std::io;
-use std::path;
+use std::path::{Path, PathBuf};
 
 pub mod artnet;
 pub mod serial;
 pub mod spidev;
 
 #[allow(clippy::type_complexity)]
-const DRIVER_DETECTORS: &[(&str, fn(&path::Path) -> bool)] =
+const DRIVER_DETECTORS: &[(&str, fn(&Path) -> bool)] =
     &[("serial", serial::is_serial), ("spidev", spidev::is_spidev)];
 
-pub fn detect<P: AsRef<path::Path>>(file: P) -> Option<String> {
+pub fn detect(file: impl AsRef<Path>) -> Option<String> {
     let real_file = match read_link_recursive(file) {
         Ok(p) => p,
         Err(_) => return None,
@@ -26,9 +26,9 @@ pub fn detect<P: AsRef<path::Path>>(file: P) -> Option<String> {
     None
 }
 
-fn read_link_recursive<P: AsRef<path::Path>>(path: P) -> io::Result<path::PathBuf> {
-    match fs::read_link(&path) {
-        Ok(path) => read_link_recursive(&path),
+fn read_link_recursive(path: impl AsRef<Path>) -> io::Result<PathBuf> {
+    match fs::read_link(path.as_ref()) {
+        Ok(path) => read_link_recursive(path),
         Err(err) => {
             if err.raw_os_error() == Some(22) {
                 Ok(path.as_ref().to_path_buf())

@@ -11,21 +11,24 @@ use crate::driver::*;
 use crate::input::geometry::*;
 use crate::input::*;
 use std::borrow::Borrow;
-use std::collections;
+use std::collections::BTreeMap;
 use std::env;
+use std::error::Error;
+use std::fmt;
 use std::fs;
 use std::io;
+use std::iter;
 use std::path;
 use std::process;
 use std::sync::mpsc;
 use std::thread;
-use std::time;
+use std::time::{Duration, Instant};
 
-fn main() {
-    let mut cli = clap::App::new("ledcat")
-        .version("0.0.1")
-        .author("polyfloyd <floyd@polyfloyd.net>")
-        .about("Like netcat, but for leds.")
+fn main() -> Result<(), Box<dyn Error>> {
+    let mut cli = clap::App::new(env!("CARGO_PKG_NAME"))
+        .version(env!("CARGO_PKG_VERSION"))
+        .author(env!("CARGO_PKG_AUTHORS"))
+        .about(env!("CARGO_PKG_DESCRIPTION"))
         .arg(clap::Arg::with_name("output")
             .short("o")
             .long("output")
@@ -125,7 +128,7 @@ fn main() {
             .conflicts_with("framerate")
             .help("Send a single frame to the output and exit"));
 
-    let mut device_constructors = collections::HashMap::new();
+    let mut device_constructors = BTreeMap::new();
     for device_init in device::devices() {
         device_constructors.insert(device_init.0.get_name().to_string(), device_init.1);
         cli = cli.subcommand(device_init.0);
@@ -156,19 +159,13 @@ fn main() {
         },
     };
     let output: Box<dyn Output> = {
-        let result = device_constructors[sub_name](sub_matches.unwrap(), &gargs);
-        let from_command = match result {
-            Ok(v) => v,
-            Err(err) => {
-                println!("{}", err);
-                return;
-            }
-        };
+        let from_command = device_constructors[sub_name](sub_matches.unwrap(), &gargs)?;
         match from_command {
             FromCommand::Device(dev) => {
-                let output_file = path::PathBuf::from(match matches.value_of("output").unwrap() {
+                let output = matches.value_of("output").unwrap();
+                let output_file = path::PathBuf::from(match output {
                     "-" => "/dev/stdout",
-                    _ => matches.value_of("output").unwrap(),
+                    out => out,
                 });
 
                 let driver_name = matches
@@ -192,36 +189,20 @@ fn main() {
                             .unwrap();
                         Box::new(serial::open(&output_file, baudrate).unwrap())
                     }
-                    _ => {
-                        eprintln!("Unknown driver {}", driver_name);
-                        return;
-                    }
+                    d => return Err(GenericError::new(format!("unknown driver {}", d)).into()),
                 };
                 Box::new((dev, output))
             }
             FromCommand::Output(output) => output,
-            FromCommand::SubcommandHandled => return,
+            FromCommand::SubcommandHandled => return Ok(()),
         }
     };
-    let dimensions = match gargs.dimensions() {
-        Ok(d) => d,
-        Err(err) => {
-            eprintln!("{}", err);
-            return;
-        }
-    };
+    let dimensions = gargs.dimensions()?;
 
-    let transpose = matches
-        .values_of("transpose")
-        .map(|v| v.collect())
-        .unwrap_or_else(Vec::new);
-    let transposition = match transposition_table(&dimensions, transpose) {
-        Ok(t) => t,
-        Err(err) => {
-            eprintln!("{}", err);
-            return;
-        }
-    };
+    let transposition = match matches.values_of("transpose") {
+        Some(v) => transposition_table(&dimensions, v),
+        None => transposition_table(&dimensions, iter::empty()),
+    }?;
     assert_eq!(dimensions.size(), transposition.len());
 
     let color_correction = matches
@@ -236,37 +217,45 @@ fn main() {
 
     let frame_interval = matches
         .value_of("framerate")
-        .map(|fps| time::Duration::from_secs(1) / fps.parse::<u32>().unwrap());
+        .map(|fps| Duration::from_secs(1) / fps.parse::<u32>().unwrap());
     let single_frame = matches.is_present("single-frame");
 
-    let inputs = matches.values_of("input").unwrap();
-    let exit_condition = {
-        match matches.value_of("exit") {
-            Some("never") => select::ExitCondition::Never,
-            Some("one") => select::ExitCondition::OneClosed,
-            Some("all") | Some(_) | None => select::ExitCondition::All,
-        }
+    let input = {
+        let exit_condition = {
+            match matches.value_of("exit") {
+                Some("never") => select::ExitCondition::Never,
+                Some("one") => select::ExitCondition::OneClosed,
+                Some("all") | None => select::ExitCondition::AllClosed,
+                Some(e) => {
+                    return Err(
+                        GenericError::new(format!("invalid value for --exit: {}", e)).into(),
+                    )
+                }
+            }
+        };
+        let files = matches
+            .values_of("input")
+            .unwrap()
+            .map(|f| match f {
+                "-" => "/dev/stdin",
+                f => f,
+            })
+            .collect();
+        let clear_timeout = frame_interval.map(|t| t * 2).unwrap_or_else(|| {
+            let ms = matches
+                .value_of("clear-timeout")
+                .map(|v| v.parse::<u32>().unwrap())
+                .unwrap_or(100);
+            Duration::from_millis(ms as u64)
+        });
+        select::Reader::from_files(
+            files,
+            dimensions.size() * 3,
+            exit_condition,
+            Some(clear_timeout),
+        )
+        .unwrap()
     };
-    let files = inputs
-        .map(|f| match f {
-            "-" => "/dev/stdin",
-            f => f,
-        })
-        .collect();
-    let clear_timeout = frame_interval.map(|t| t * 2).unwrap_or_else(|| {
-        let ms = matches
-            .value_of("clear-timeout")
-            .map(|v| v.parse::<u32>().unwrap())
-            .unwrap_or(100);
-        time::Duration::from_millis(ms as u64)
-    });
-    let input = select::Reader::from_files(
-        files,
-        dimensions.size() * 3,
-        exit_condition,
-        Some(clear_timeout),
-    )
-    .unwrap();
 
     let _ = pipe_frames(
         input,
@@ -277,6 +266,7 @@ fn main() {
         single_frame,
         frame_interval,
     );
+    Ok(())
 }
 
 fn pipe_frames(
@@ -286,7 +276,7 @@ fn pipe_frames(
     correction: Correction,
     dim: u8,
     single_frame: bool,
-    frame_interval: Option<time::Duration>,
+    frame_interval: Option<Duration>,
 ) -> io::Result<()> {
     let (err_tx, err_rx) = mpsc::channel();
     macro_rules! try_or_send {
@@ -348,7 +338,7 @@ fn pipe_frames(
     });
 
     thread::spawn(move || loop {
-        let start = time::Instant::now();
+        let start = Instant::now();
 
         let buffer = match map_rx.recv() {
             Ok(v) => v,
@@ -366,50 +356,70 @@ fn pipe_frames(
 
     match err_rx.recv() {
         Ok(err) => err,
-        Err(_) => Ok(()),
+        Err(mpsc::RecvError) => Ok(()),
     }
 }
 
-fn transposition_table(
+fn transposition_table<'a>(
     dimensions: &Dimensions,
-    operations: Vec<&str>,
+    operations: impl Iterator<Item = &'a str>,
 ) -> Result<Vec<usize>, String> {
-    let rs: Result<Vec<_>, _> = operations
-        .into_iter()
-        .map(|name| -> Result<Box<dyn Transposition>, String> {
-            match (name, *dimensions) {
-                ("reverse", dim) => Ok(Box::new(Reverse { length: dim.size() })),
-                ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
-                    Ok(Box::new(Zigzag {
-                        width: w,
-                        height: h,
-                        major_axis: match name.chars().last().unwrap() {
-                            'x' => Axis::X,
-                            'y' => Axis::Y,
-                            _ => unreachable!(),
-                        },
-                    }))
-                }
-                ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
-                    Ok(Box::new(Mirror {
-                        width: w,
-                        height: h,
-                        axis: match name.chars().last().unwrap() {
-                            'x' => Axis::X,
-                            'y' => Axis::Y,
-                            _ => unreachable!(),
-                        },
-                    }))
-                }
-                (name, Dimensions::One(_)) => {
-                    Err(format!("{} requires 2D geometry to be specified", name))
-                }
-                (name, _) => Err(format!("Unknown transposition: {}", name)),
-            }
-        })
-        .collect();
-    let transpositions = rs?;
+    let transpositions = operations
+        .map(|name| map_transposition(dimensions, name))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok((0..dimensions.size())
         .map(|index| transpositions.transpose(index))
         .collect())
 }
+
+fn map_transposition(
+    dimensions: &Dimensions,
+    name: &str,
+) -> Result<Box<dyn Transposition>, String> {
+    match (name, *dimensions) {
+        ("reverse", dim) => Ok(Box::new(Reverse { length: dim.size() })),
+        ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
+            Ok(Box::new(Zigzag {
+                width: w,
+                height: h,
+                major_axis: match name.chars().last().unwrap() {
+                    'x' => Axis::X,
+                    'y' => Axis::Y,
+                    _ => unreachable!(),
+                },
+            }))
+        }
+        ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
+            Ok(Box::new(Mirror {
+                width: w,
+                height: h,
+                axis: match name.chars().last().unwrap() {
+                    'x' => Axis::X,
+                    'y' => Axis::Y,
+                    _ => unreachable!(),
+                },
+            }))
+        }
+        (name, Dimensions::One(_)) => Err(format!("{} requires 2D geometry to be specified", name)),
+        (name, _) => Err(format!("unknown transposition: {}", name)),
+    }
+}
+
+#[derive(Debug)]
+struct GenericError {
+    msg: String,
+}
+
+impl GenericError {
+    fn new(msg: impl Into<String>) -> Self {
+        Self { msg: msg.into() }
+    }
+}
+
+impl fmt::Display for GenericError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.msg)
+    }
+}
+
+impl Error for GenericError {}

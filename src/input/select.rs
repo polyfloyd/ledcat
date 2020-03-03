@@ -11,7 +11,7 @@ use std::time;
 pub enum ExitCondition {
     Never,
     OneClosed,
-    All,
+    AllClosed,
 }
 
 pub trait ReadFd: io::Read + AsRawFd {}
@@ -158,7 +158,7 @@ impl io::Read for Reader {
                 let close = match self.exit_condition {
                     ExitCondition::Never => false,
                     ExitCondition::OneClosed => num_open < poll_fds.len() && ready_index.is_none(),
-                    ExitCondition::All => num_open == 0,
+                    ExitCondition::AllClosed => num_open == 0,
                 };
                 if close {
                     return Ok(0);
@@ -251,7 +251,7 @@ mod tests {
         let mut reader = Reader::from(
             vec![new_iter_reader(testdata.clone().into_iter())],
             len,
-            ExitCondition::All,
+            ExitCondition::AllClosed,
             None,
         );
 
@@ -276,7 +276,7 @@ mod tests {
                 .map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<dyn ReadFd + Send>)
                 .collect(),
             len,
-            ExitCondition::All,
+            ExitCondition::AllClosed,
             None,
         );
 
@@ -300,7 +300,7 @@ mod tests {
                 new_iter_reader(iter::empty()),
             ],
             1,
-            ExitCondition::All,
+            ExitCondition::AllClosed,
             None,
         );
         timeout!(time::Duration::from_secs(10), {
@@ -317,7 +317,7 @@ mod tests {
                 new_iter_reader(iter::empty()),
             ],
             1,
-            ExitCondition::All,
+            ExitCondition::AllClosed,
             None,
         );
         timeout!(time::Duration::from_secs(10), {
@@ -355,7 +355,7 @@ mod tests {
         let mut reader = Reader::from_files(
             vec![&fifo1_path, &fifo2_path],
             len,
-            ExitCondition::All,
+            ExitCondition::AllClosed,
             None,
         )
         .unwrap();
@@ -403,8 +403,13 @@ mod tests {
         let tmp = tempdir().unwrap();
         let fifo_path = tmp.path().join("fifo");
         unistd::mkfifo(&fifo_path, Mode::from_bits(0o666).unwrap()).unwrap();
-        let mut reader =
-            Reader::from_files(vec![&fifo_path], len, ExitCondition::All, Some(timeout)).unwrap();
+        let mut reader = Reader::from_files(
+            vec![&fifo_path],
+            len,
+            ExitCondition::AllClosed,
+            Some(timeout),
+        )
+        .unwrap();
         let mut fifo = fs::OpenOptions::new().write(true).open(&fifo_path).unwrap();
 
         let thread = thread::spawn(move || {
