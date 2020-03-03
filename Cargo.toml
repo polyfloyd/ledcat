@@ -21,7 +21,7 @@ rpi-led-matrix = [ "librgbmatrix-sys" ]
 byteorder = "1"
 clap = "2"
 gpio = "0.4"
-librgbmatrix-sys = { path = "librgbmatrix-sys", optional = true }
+librgbmatrix-sys = { version = "0.1", optional = true }
 net2 = "0.2"
 nix = "0.17"
 regex = "1"
@@ -30,8 +30,3 @@ regex = "1"
 assert_cli = "0.6"
 rand = "0.7"
 tempfile = "3"
-
-[workspace]
-members = [
-    "librgbmatrix-sys"
-]
