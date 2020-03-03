@@ -6,6 +6,8 @@ pub enum Format {
     RGB24,
     RGB16,
     RGB12,
+    RGB8,
+    GS1,
 }
 
 pub struct Generic {
@@ -52,6 +54,30 @@ impl Device for Generic {
                     .collect();
                 writer.write_all(&buf)?;
             }
+            Format::RGB8 => {
+                let buf: Vec<u8> = pixels
+                    .iter()
+                    .map(|p| (p.b & 0xc0) | ((p.g >> 2) & 0x3c) | (p.r & 0x3))
+                    .collect();
+                writer.write_all(&buf)?;
+            }
+            Format::GS1 => {
+                assert!(pixels.len() % 8 == 0);
+                let prebuf: Vec<u8> = pixels
+                    .iter()
+                    .map(|p| if grayscale(*p) > 127 { 1 } else { 0 })
+                    .collect();
+                let packed: Vec<u8> = prebuf
+                    .chunks(8)
+                    .map(|chunk| {
+                        chunk
+                            .iter()
+                            .enumerate()
+                            .fold(0, |pack, (i, b)| pack | b << i)
+                    })
+                    .collect();
+                writer.write_all(&packed)?;
+            }
         }
         Ok(())
     }
@@ -66,7 +92,7 @@ pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
                 .long("format")
                 .takes_value(true)
                 .default_value("rgb24")
-                .possible_values(&["rgb24", "rgb16", "rgb12"]),
+                .possible_values(&["rgb24", "rgb16", "rgb12", "rgb8", "gs1"]),
         )
 }
 
@@ -74,7 +100,14 @@ pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromC
     let format = match args.value_of("format").unwrap() {
         "rgb16" => Format::RGB16,
         "rgb12" => Format::RGB12,
+        "rgb8" => Format::RGB8,
+        "gs1" => Format::GS1,
         _ => Format::RGB24,
     };
     Ok(FromCommand::Device(Box::new(Generic { format })))
+}
+
+fn grayscale(p: Pixel) -> u8 {
+    let g = (0.2125 * p.r as f32) + (0.7154 * p.g as f32) + (0.0721 * p.b as f32);
+    g.round() as u8
 }
