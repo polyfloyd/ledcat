@@ -5,6 +5,7 @@ use std::io;
 use std::ops::{Deref, DerefMut};
 
 pub mod apa102;
+pub mod artnet;
 pub mod fluxled;
 pub mod generic;
 pub mod hexws2811;

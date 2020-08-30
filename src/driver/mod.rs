@@ -4,7 +4,6 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub mod artnet;
 pub mod serial;
 pub mod spidev;
 
