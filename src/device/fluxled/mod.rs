@@ -2,10 +2,7 @@ mod bulb;
 
 use self::bulb::*;
 use crate::device::*;
-use clap;
-use net2;
 use net2::unix::UnixUdpBuilderExt;
-use nix;
 use std::collections;
 use std::error;
 use std::io::{self, Write};

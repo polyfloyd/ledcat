@@ -1,6 +1,5 @@
 use crate::color::*;
 use crate::device::*;
-use clap;
 use std::io;
 
 pub struct Sk9822 {

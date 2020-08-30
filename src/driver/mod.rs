@@ -1,4 +1,3 @@
-use nix;
 use std::error;
 use std::fmt;
 use std::fs;

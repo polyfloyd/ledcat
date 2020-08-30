@@ -1,5 +1,4 @@
 use crate::device::*;
-use clap;
 use std::collections;
 use std::io::{self, Write};
 use std::net;

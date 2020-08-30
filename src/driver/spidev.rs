@@ -1,7 +1,6 @@
 use crate::device::*;
 use crate::driver;
 use nix::ioctl_write_buf;
-use regex;
 use std::fs;
 use std::os::unix::io::AsRawFd;
 use std::path;

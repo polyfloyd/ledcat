@@ -1,5 +1,4 @@
 use crate::device::*;
-use clap;
 use std::io;
 
 pub struct HexWS2811 {}

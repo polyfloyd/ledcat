@@ -1,6 +1,5 @@
 use crate::color::*;
 use crate::device::*;
-use clap;
 use std::io;
 
 pub struct Lpd8806 {

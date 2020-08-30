@@ -1,5 +1,4 @@
 use crate::device::*;
-use clap;
 use librgbmatrix_sys::*;
 use std::ffi::CString;
 use std::mem;

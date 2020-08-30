@@ -1,7 +1,6 @@
 use crate::color::*;
 use crate::driver::*;
 use crate::geometry::*;
-use clap;
 use std::io;
 use std::ops::{Deref, DerefMut};
 
