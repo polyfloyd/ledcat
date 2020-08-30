@@ -14,10 +14,6 @@ pub struct LedMatrix {
 unsafe impl Send for LedMatrix {}
 
 impl Output for LedMatrix {
-    fn color_correction(&self) -> Correction {
-        Correction::none()
-    }
-
     fn output_frame(&mut self, frame: &[Pixel]) -> io::Result<()> {
         assert!(frame.len() == self.width * self.height);
         for y in 0..self.height {

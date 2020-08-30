@@ -9,10 +9,6 @@ pub struct AnsiDisplay {
 }
 
 impl Output for AnsiDisplay {
-    fn color_correction(&self) -> Correction {
-        Correction::none()
-    }
-
     fn output_frame(&mut self, frame: &[Pixel]) -> io::Result<()> {
         // A buffer is used so frames can be written in one go, significantly improving
         // performance.

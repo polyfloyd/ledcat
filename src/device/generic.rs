@@ -14,10 +14,6 @@ pub struct Generic {
 }
 
 impl Device for Generic {
-    fn color_correction(&self) -> Correction {
-        Correction::none()
-    }
-
     fn write_frame(&self, writer: &mut dyn io::Write, pixels: &[Pixel]) -> io::Result<()> {
         match self.format {
             Format::RGB24 => {

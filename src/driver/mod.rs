@@ -11,14 +11,11 @@ pub mod spidev;
 const DRIVER_DETECTORS: &[(&str, fn(&Path) -> bool)] =
     &[("serial", serial::is_serial), ("spidev", spidev::is_spidev)];
 
-pub fn detect(file: impl AsRef<Path>) -> Option<String> {
-    let real_file = match read_link_recursive(file) {
-        Ok(p) => p,
-        Err(_) => return None,
-    };
-    for dr in DRIVER_DETECTORS {
-        if dr.1(&real_file) {
-            return Some(dr.0.to_string());
+pub fn detect(file: impl AsRef<Path>) -> Option<&'static str> {
+    let real_file = read_link_recursive(file).ok()?;
+    for (name, probe) in DRIVER_DETECTORS {
+        if probe(&real_file) {
+            return Some(name);
         }
     }
     None
@@ -27,13 +24,9 @@ pub fn detect(file: impl AsRef<Path>) -> Option<String> {
 fn read_link_recursive(path: impl AsRef<Path>) -> io::Result<PathBuf> {
     match fs::read_link(path.as_ref()) {
         Ok(path) => read_link_recursive(path),
-        Err(err) => {
-            if err.raw_os_error() == Some(22) {
-                Ok(path.as_ref().to_path_buf())
-            } else {
-                Err(err)
-            }
-        }
+        // Code 22 denotes that we tried to deref a non-symlink.
+        Err(err) if err.raw_os_error() == Some(22) => Ok(path.as_ref().to_path_buf()),
+        Err(err) => Err(err),
     }
 }
 

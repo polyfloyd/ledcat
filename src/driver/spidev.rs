@@ -1,9 +1,8 @@
-use crate::device::*;
 use crate::driver;
 use nix::ioctl_write_buf;
 use std::fs;
 use std::os::unix::io::AsRawFd;
-use std::path;
+use std::path::Path;
 
 ioctl_write_buf!(spi_ioc_wr_mode, b'k', 1, u8);
 ioctl_write_buf!(spi_ioc_wr_lsb_first, b'k', 2, u8);
@@ -24,13 +23,9 @@ pub struct Config {
     pub speed_hz: u32,
 }
 
-pub fn open(path: &path::Path, dev: &dyn Device) -> Result<fs::File, driver::Error> {
+pub fn open(path: impl AsRef<Path>, conf: Config) -> Result<fs::File, driver::Error> {
     let spidev = fs::OpenOptions::new().write(true).open(path)?;
     let fd = spidev.as_raw_fd();
-
-    let conf = dev
-        .spidev_config()
-        .ok_or(driver::Error::DeviceNotSupported)?;
 
     let lsb_first: u8 = match conf.first_bit {
         FirstBit::MSB => 0,
@@ -45,12 +40,12 @@ pub fn open(path: &path::Path, dev: &dyn Device) -> Result<fs::File, driver::Err
     Ok(spidev)
 }
 
-pub fn is_spidev(path: &path::Path) -> bool {
+pub fn is_spidev(path: &Path) -> bool {
     let devs = regex::RegexSet::new(&[
         r"^/dev/spidev\d+\.\d+$",
         r"^/sys/devices/.+/spi\d\.\d$",
         r"^/sys/class/devices/.+/spi\d\.\d$",
     ])
     .unwrap();
-    devs.is_match(path.to_str().unwrap())
+    path.to_str().map(|s| devs.is_match(s)).unwrap_or(false)
 }

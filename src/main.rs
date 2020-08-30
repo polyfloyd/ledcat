@@ -10,7 +10,6 @@ use crate::device::*;
 use crate::driver::*;
 use crate::input::geometry::*;
 use crate::input::*;
-use std::borrow::Borrow;
 use std::collections::BTreeMap;
 use std::env;
 use std::error::Error;
@@ -18,7 +17,7 @@ use std::fmt;
 use std::fs;
 use std::io;
 use std::iter;
-use std::path;
+use std::path::PathBuf;
 use std::process;
 use std::sync::mpsc;
 use std::thread;
@@ -129,9 +128,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             .help("Send a single frame to the output and exit"));
 
     let mut device_constructors = BTreeMap::new();
-    for device_init in device::devices() {
-        device_constructors.insert(device_init.0.get_name().to_string(), device_init.1);
-        cli = cli.subcommand(device_init.0);
+    for (command, from_command) in device::devices() {
+        device_constructors.insert(command.get_name().to_string(), from_command);
+        cli = cli.subcommand(command);
     }
 
     let matches = cli.clone().get_matches();
@@ -144,6 +143,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let gargs = GlobalArgs {
+        output_file: {
+            let output = matches.value_of("output").unwrap();
+            PathBuf::from(match output {
+                "-" => "/dev/stdout",
+                out => out,
+            })
+        },
         // Don't require the display geomtry to be set just yet, a non-outputting subcommand may
         // not need it anyway.
         dimensions: {
@@ -162,32 +168,31 @@ fn main() -> Result<(), Box<dyn Error>> {
         let from_command = device_constructors[sub_name](sub_matches.unwrap(), &gargs)?;
         match from_command {
             FromCommand::Device(dev) => {
-                let output = matches.value_of("output").unwrap();
-                let output_file = path::PathBuf::from(match output {
-                    "-" => "/dev/stdout",
-                    out => out,
-                });
-
                 let driver_name = matches
                     .value_of("driver")
-                    .map(|s: &str| s.to_string())
-                    .or_else(|| driver::detect(&output_file))
+                    .or_else(|| driver::detect(&gargs.output_file))
+                    .map(str::to_string)
                     .unwrap_or_else(|| "none".to_string());
                 let output: Box<dyn io::Write + Send> = match driver_name.as_str() {
                     "none" => Box::new(
                         fs::OpenOptions::new()
                             .write(true)
-                            .open(&output_file)
+                            .open(&gargs.output_file)
                             .unwrap(),
                     ),
-                    "spidev" => Box::new(spidev::open(&output_file, dev.borrow()).unwrap()),
+                    "spidev" => {
+                        let conf = dev
+                            .spidev_config()
+                            .ok_or(driver::Error::DeviceNotSupported)?;
+                        Box::new(spidev::open(&gargs.output_file, conf).unwrap())
+                    }
                     "serial" => {
                         let baudrate = matches
                             .value_of("serial-baudrate")
                             .unwrap()
                             .parse::<u32>()
                             .unwrap();
-                        Box::new(serial::open(&output_file, baudrate).unwrap())
+                        Box::new(serial::open(&gargs.output_file, baudrate).unwrap())
                     }
                     d => return Err(GenericError::new(format!("unknown driver {}", d)).into()),
                 };

@@ -3,6 +3,7 @@ use crate::driver::*;
 use crate::geometry::*;
 use std::io;
 use std::ops::{Deref, DerefMut};
+use std::path::PathBuf;
 
 pub mod apa102;
 pub mod artnet;
@@ -22,9 +23,11 @@ pub mod ws2812;
 /// It is also possible to compose an output from a Device and an `io::Write` to allow reuse of
 /// driver code.
 pub trait Output: Send {
-    fn color_correction(&self) -> Correction;
-
     fn output_frame(&mut self, frame: &[Pixel]) -> io::Result<()>;
+
+    fn color_correction(&self) -> Correction {
+        Correction::none()
+    }
 }
 
 impl<D, W> Output for (D, W)
@@ -32,22 +35,22 @@ where
     D: Device + Send,
     W: io::Write + Send,
 {
-    fn color_correction(&self) -> Correction {
-        self.0.color_correction()
-    }
-
     fn output_frame(&mut self, frame: &[Pixel]) -> io::Result<()> {
         self.0.write_frame(&mut self.1, frame)
+    }
+
+    fn color_correction(&self) -> Correction {
+        self.0.color_correction()
     }
 }
 
 impl Output for Box<dyn Output> {
-    fn color_correction(&self) -> Correction {
-        self.deref().color_correction()
-    }
-
     fn output_frame(&mut self, pixels: &[Pixel]) -> io::Result<()> {
         self.deref_mut().output_frame(pixels)
+    }
+
+    fn color_correction(&self) -> Correction {
+        self.deref().color_correction()
     }
 }
 
@@ -56,8 +59,11 @@ impl Output for Box<dyn Output> {
 /// The other half of the output is formed by the driver modules which handle the actual IO to the
 /// device.
 pub trait Device: Send {
-    fn color_correction(&self) -> Correction;
     fn write_frame(&self, w: &mut dyn io::Write, frame: &[Pixel]) -> io::Result<()>;
+
+    fn color_correction(&self) -> Correction {
+        Correction::none()
+    }
 
     fn spidev_config(&self) -> Option<spidev::Config> {
         None
@@ -87,6 +93,7 @@ where
 }
 
 pub struct GlobalArgs {
+    pub output_file: PathBuf,
     pub dimensions: Option<Dimensions>,
 }
 

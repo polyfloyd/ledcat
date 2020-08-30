@@ -2,9 +2,9 @@ use crate::driver;
 use nix::sys::termios;
 use std::fs;
 use std::os::unix::io::AsRawFd;
-use std::path;
+use std::path::Path;
 
-pub fn open<P: AsRef<path::Path>>(path: P, baudrate: u32) -> Result<fs::File, driver::Error> {
+pub fn open(path: impl AsRef<Path>, baudrate: u32) -> Result<fs::File, driver::Error> {
     let tty = fs::OpenOptions::new().write(true).read(true).open(path)?;
     let fd = tty.as_raw_fd();
     let mut tio = termios::tcgetattr(fd)?;
@@ -17,7 +17,7 @@ pub fn open<P: AsRef<path::Path>>(path: P, baudrate: u32) -> Result<fs::File, dr
     Ok(tty)
 }
 
-pub fn is_serial(path: &path::Path) -> bool {
+pub fn is_serial(path: &Path) -> bool {
     path.to_str()
         .map(|p| p.starts_with("/dev/tty"))
         .unwrap_or(false)
