@@ -218,10 +218,7 @@ impl Cidr {
             .filter(|iface| iface.flags.contains(InterfaceFlags::IFF_LOWER_UP))
             // Filter out IPv6-only interfaces, assume the devices we are trying to discover
             // are pieces of shit that only support IPv4.
-            .filter(|iface| match iface.address {
-                Some(SockAddr::Inet(InetAddr::V4(_))) => true,
-                _ => false,
-            })
+            .filter(|iface| matches!(iface.address, Some(SockAddr::Inet(InetAddr::V4(_)))))
             // Convert the interface's address to CIDR notation.
             .filter_map(|iface| {
                 let addr = match iface.address.unwrap() {
