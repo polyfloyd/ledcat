@@ -46,7 +46,7 @@ jobs:
     - release
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v3
     - run: rustup update
     - run: rustup target add ${{ matrix.target }}
 
@@ -67,3 +67,15 @@ jobs:
         file: ledcat-${{ matrix.target }}.tar.gz
         asset_name: ledcat-${{ matrix.target }}.tar.gz
         tag: ${{ github.ref }}
+
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: true
+
+    - run: cargo publish --token ${CRATES_TOKEN}
+      env:
+        CRATES_TOKEN: ${{ secrets.CRATES_TOKEN }}
