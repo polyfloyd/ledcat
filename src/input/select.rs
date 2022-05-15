@@ -190,8 +190,7 @@ mod tests {
     use super::*;
     use nix::sys::stat::Mode;
     use nix::unistd;
-    use rand::distributions::Alphanumeric;
-    use rand::Rng;
+    use rand::distributions::{Alphanumeric, DistString};
     use std::io::{Read, Seek, Write};
     use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
@@ -216,10 +215,8 @@ mod tests {
     #[cfg(target_os = "linux")]
     fn new_iter_reader(iter: impl Iterator<Item = u8>) -> Box<fs::File> {
         use nix::sys::memfd::*;
-        let name = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(32)
-            .collect::<String>();
+        let mut rng = rand::thread_rng();
+        let name = Alphanumeric.sample_string(&mut rng, 32);
         let cname = ffi::CString::new(name).unwrap();
         let fd = memfd_create(&cname, MemFdCreateFlag::empty()).unwrap();
         let mut f = unsafe { fs::File::from_raw_fd(fd) };
