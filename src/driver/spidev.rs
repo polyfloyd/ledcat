@@ -11,8 +11,8 @@ ioctl_write_buf!(spi_ioc_wr_max_speed_hz, b'k', 4, u32);
 #[allow(dead_code)]
 #[derive(Copy, Clone, Debug)]
 pub enum FirstBit {
-    LSB,
-    MSB,
+    Lsb,
+    Msb,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -28,8 +28,8 @@ pub fn open(path: impl AsRef<Path>, conf: Config) -> Result<fs::File, driver::Er
     let fd = spidev.as_raw_fd();
 
     let lsb_first: u8 = match conf.first_bit {
-        FirstBit::MSB => 0,
-        FirstBit::LSB => 1,
+        FirstBit::Msb => 0,
+        FirstBit::Lsb => 1,
     };
     unsafe {
         spi_ioc_wr_mode(fd, &[conf.clock_polarity | (conf.clock_polarity << 1)])?;

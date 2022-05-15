@@ -15,7 +15,7 @@ impl Device for Ws2812 {
         Some(spidev::Config {
             clock_polarity: 0, // N/A: The WS2812 does not require a clock.
             clock_phase: 0,    // N/A
-            first_bit: spidev::FirstBit::MSB,
+            first_bit: spidev::FirstBit::Msb,
             speed_hz: 2_400_000, // 1s / 1.25µs * 3 = 2.4MHz
         })
     }

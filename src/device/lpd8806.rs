@@ -15,7 +15,7 @@ impl Device for Lpd8806 {
         Some(spidev::Config {
             clock_polarity: 0,
             clock_phase: 0,
-            first_bit: spidev::FirstBit::MSB,
+            first_bit: spidev::FirstBit::Msb,
             speed_hz: self.spidev_clock,
         })
     }

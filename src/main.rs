@@ -96,7 +96,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .validator(|v| {
                 let f = v.parse::<f32>()
                     .map_err(|e| format!("{}", e))?;
-                if 0.0 <= f && f <= 1.0 {
+                if (0.0..=1.0).contains(&f) {
                     Ok(())
                 } else {
                     Err(format!("dim value out of range: {}", f))
@@ -135,7 +135,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     let matches = cli.clone().get_matches();
     let (sub_name, sub_matches) = matches.subcommand();
-    if sub_name == "" {
+    if sub_name.is_empty() {
         let mut out = io::stderr();
         cli.write_help(&mut out).unwrap();
         eprintln!();
