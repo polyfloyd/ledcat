@@ -23,7 +23,7 @@ clap = "2"
 gpio = "0.4"
 librgbmatrix-sys = { version = "0.9", optional = true }
 net2 = "0.2"
-nix = "0.18"
+nix = "0.27"
 regex = "1"
 
 [dev-dependencies]
