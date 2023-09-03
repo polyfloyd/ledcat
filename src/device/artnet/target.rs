@@ -65,7 +65,7 @@ impl ListFile {
                     let file = try_or_continue!(fs::File::open(&path));
                     let addrs = io::BufReader::new(file)
                         .lines()
-                        .filter_map(|rs| rs.ok())
+                        .map_while(Result::ok)
                         .filter_map(|line| {
                             line.parse().ok().or_else(|| {
                                 line.parse()

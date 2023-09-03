@@ -21,13 +21,13 @@ pub fn command() -> clap::Command {
         .about("TODO")
         .arg(clap::arg!(-t --target <value> ... )
             .value_parser(clap::value_parser!(net::IpAddr))
-            .conflicts_with_all(&["discover"])
+            .conflicts_with_all(["discover"])
             .help("One or more target IP addresses"))
         .arg(clap::arg!(-d --discover "Discover Flux-LED nodes")
-            .conflicts_with_all(&["target"]))
+            .conflicts_with_all(["target"]))
         .arg(clap::arg!(-n --net <value> "The network range of where to look for devices in CIDR format")
             .value_parser(clap::value_parser!(Cidr))
-            .requires_all(&["discover"]))
+            .requires_all(["discover"]))
 }
 
 pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<FromCommand> {

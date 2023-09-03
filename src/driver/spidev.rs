@@ -41,7 +41,7 @@ pub fn open(path: impl AsRef<Path>, conf: Config) -> Result<fs::File, driver::Er
 }
 
 pub fn is_spidev(path: &Path) -> bool {
-    let devs = regex::RegexSet::new(&[
+    let devs = regex::RegexSet::new([
         r"^/dev/spidev\d+\.\d+$",
         r"^/sys/devices/.+/spi\d\.\d$",
         r"^/sys/class/devices/.+/spi\d\.\d$",
