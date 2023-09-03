@@ -31,44 +31,21 @@ impl Device for Apa102 {
     }
 }
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("apa102")
-        .arg(
-            clap::Arg::with_name("grayscale")
-                .short("g")
-                .long("grayscale")
-                .validator(validate_grayscale)
-                .default_value("31")
-                .help("Set the 5-bit grayscale for all pixels"),
-        )
-        .arg(
-            clap::Arg::with_name("spidev-clock")
-                .long("spidev-clock")
-                .takes_value(true)
-                .validator(regex_validator!(r"^[1-9]\d*$"))
-                .default_value("500000")
-                .help("If spidev is used as driver, use this to set the clock frequency in Hertz"),
-        )
+pub fn command() -> clap::Command {
+    clap::Command::new("apa102")
+        .arg(clap::arg!(-g --grayscale "Set the 5-bit grayscale for all pixels")
+                .value_parser(clap::value_parser!(u8).range(0..32))
+                .default_value("31"))
+        .arg(clap::arg!(--"spidev-clock" <value> "If spidev is used as driver, use this to set the clock frequency in Hertz")
+                .value_parser(clap::value_parser!(u32))
+                .default_value("500000"))
 }
 
 pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
-    let grayscale = args.value_of("grayscale").unwrap().parse().unwrap();
-    let spidev_clock = args.value_of("spidev-clock").unwrap().parse().unwrap();
+    let grayscale = *args.get_one::<u8>("grayscale").unwrap();
+    let spidev_clock = *args.get_one::<u32>("spidev-clock").unwrap();
     Ok(FromCommand::Device(Box::new(Apa102 {
         grayscale,
         spidev_clock,
     })))
-}
-
-fn validate_grayscale(v: String) -> Result<(), String> {
-    match v.parse::<u8>() {
-        Ok(i) => {
-            if i <= 31 {
-                Ok(())
-            } else {
-                Err(format!("Grayscale value out of range: 0 <= {} <= 31", i))
-            }
-        }
-        Err(e) => Err(format!("{}", e)),
-    }
 }

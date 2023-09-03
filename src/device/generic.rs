@@ -78,21 +78,18 @@ impl Device for Generic {
     }
 }
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("generic")
+pub fn command() -> clap::Command {
+    clap::Command::new("generic")
         .about("Output data as RGB24 or another pixel format")
         .arg(
-            clap::Arg::with_name("format")
-                .short("f")
-                .long("format")
-                .takes_value(true)
+            clap::arg!(-f --format <value>)
                 .default_value("rgb24")
-                .possible_values(&["rgb24", "rgb16", "rgb12", "rgb8", "gs1"]),
+                .value_parser(["rgb24", "rgb16", "rgb12", "rgb8", "gs1"]),
         )
 }
 
 pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
-    let format = match args.value_of("format").unwrap() {
+    let format = match args.get_one::<String>("format").unwrap().as_str() {
         "rgb16" => Format::RGB16,
         "rgb12" => Format::RGB12,
         "rgb8" => Format::RGB8,

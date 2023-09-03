@@ -41,73 +41,37 @@ impl Drop for LedMatrix {
     }
 }
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("rpi-led-matrix")
+pub fn command() -> clap::Command {
+    clap::Command::new("rpi-led-matrix")
         .about("Hzeller's Raspberry Pi LED Matrix library")
         .after_help("For a detailed guide and caveats, please refer to https://github.com/hzeller/rpi-rgb-led-matrix for more information")
-        .arg(clap::Arg::with_name("rows")
-            .long("led-rows")
-            .takes_value(true)
-            .required_unless("parallel")
-            .validator(regex_validator!(r"^\d+$"))
-            .help("The number of rows supported by the display, e.g. 32 or 16. The combined height of the display is rows * parallel"))
-        .arg(clap::Arg::with_name("cols")
-            .long("led-cols")
-            .takes_value(true)
-            .required_unless("chain")
-            .validator(regex_validator!(r"^\d+$"))
-            .help("The number of columns per panel. The combined width of the display is cols * chain"))
-        .arg(clap::Arg::with_name("chain")
-            .long("led-chain")
-            .takes_value(true)
-            .required_unless("cols")
-            .validator(regex_validator!(r"^\d+$"))
-            .help("The number of panels daisy chained together"))
-        .arg(clap::Arg::with_name("parallel")
-            .long("led-parallel")
-            .takes_value(true)
-            .required_unless("rows")
+        .arg(clap::arg!(--"led-rows" <value> "The number of rows supported by the display, e.g. 32 or 16. The combined height of the display is rows * parallel")
+            .required_unless_present("led-parallel")
+            .value_parser(clap::value_parser!(i32)))
+        .arg(clap::arg!(--"led-cols" <value> "The number of columns per panel. The combined width of the display is cols * chain")
+            .required_unless_present("led-chain")
+            .value_parser(clap::value_parser!(i32)))
+        .arg(clap::arg!(--"led-chain" <value> "The number of panels daisy chained together")
+            .required_unless_present("led-cols")
+            .value_parser(clap::value_parser!(i32)))
+        .arg(clap::arg!(--"led-parallel" <value> "The number of displays that are being driven in parallel")
+            .required_unless_present("led-rows")
             .default_value("1")
-            .validator(regex_validator!(r"^\d+$"))
-            .help("The number of displays that are being driven in parallel"))
-        .arg(clap::Arg::with_name("hardware-mapping")
-            .long("led-hardware-mapping")
-            .takes_value(true)
-            .help("Name of the hardware mapping used"))
-        .arg(clap::Arg::with_name("pwm-bits")
-            .long("led-pwm-bits")
-            .takes_value(true)
-            .validator(regex_validator!(r"^\d+$"))
-            .help("Sets the number of PWM cycles performed. More bits equal better colors at the cost of refresh speed"))
-        .arg(clap::Arg::with_name("pwm-lsb-nanoseconds")
-            .long("led-pwm-lsb-nanoseconds")
-            .takes_value(true)
-            .validator(regex_validator!(r"^\d+$"))
-            .help("The on-time in the lowest significant bit in nanoseconds. Higher numbers provide better quality (more accurate color, less ghosting) at the cost of the refresh rate"))
-        .arg(clap::Arg::with_name("pwm-dither-bits")
-            .long("led-pwm-dither-bits")
-            .help("The lower bits can be time-dithered for higher refresh rate"))
-        .arg(clap::Arg::with_name("scan-mode")
-            .long("led-scan-mode")
-            .takes_value(true)
-            .possible_values(&["progressive", "interlaced", "0", "1"])
-            .help("This switches between progressive and interlaced scanning. The latter might look be a little nicer when you have a very low refresh rate"))
-        .arg(clap::Arg::with_name("row-addr-type")
-            .long("led-row-addr-type")
-            .takes_value(true)
-            .possible_values(&["direct", "ab", "0", "1"])
-            .help(""))
-        .arg(clap::Arg::with_name("multiplexing")
-            .long("led-multiplexing")
-            .takes_value(true)
-            .possible_values(&["direct", "stripe", "checker", "spiral", "strip", "0", "1", "2", "3", "4"])
-            .help("Outdoor panels have different multiplexing which allows them to be faster and brighter, so by default their output looks jumbled up. They require some pixel-mapping of which there are a few types you can try"))
-        .arg(clap::Arg::with_name("rgb-sequence")
-            .long("led-rgb-sequence")
-            .takes_value(true)
-            .default_value("RGB")
-            .validator(regex_validator!(r"^[RGB]{3}$"))
-            .help("Allows swapping of subpixels"))
+            .value_parser(clap::value_parser!(i32)))
+        .arg(clap::arg!(--"led-hardware-mapping" <value> "Name of the hardware mapping used"))
+        .arg(clap::arg!(--"led-pwm-bits" <value> "Sets the number of PWM cycles performed. More bits equal better colors at the cost of refresh speed")
+            .value_parser(clap::value_parser!(i32)))
+        .arg(clap::arg!(--"led-pwm-lsb-nanoseconds" <value> "The on-time in the lowest significant bit in nanoseconds. Higher numbers provide better quality (more accurate color, less ghosting) at the cost of the refresh rate")
+            .value_parser(clap::value_parser!(i32)))
+        .arg(clap::arg!(--"ledpwm-dither-bits" "The lower bits can be time-dithered for higher refresh rate"))
+        .arg(clap::arg!(--"led-scan-mode" <value> "This switches between progressive and interlaced scanning. The latter might look be a little nicer when you have a very low refresh rate")
+            .value_parser(["progressive", "interlaced", "0", "1"]))
+        .arg(clap::arg!(--"led-row-addr-type" <value>)
+            .value_parser(["direct", "ab", "0", "1"]))
+        .arg(clap::arg!(--"led-multiplexing" <value> "Outdoor panels have different multiplexing which allows them to be faster and brighter, so by default their output looks jumbled up. They require some pixel-mapping of which there are a few types you can try")
+            .value_parser(["direct", "stripe", "checker", "spiral", "strip", "0", "1", "2", "3", "4"]))
+        .arg(clap::arg!(--"led-rgb-sequence" <value> "Allows swapping of subpixels")
+            .default_value("RGB"))
 }
 
 pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
@@ -115,10 +79,10 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         let mut options: RGBLedMatrixOptions = mem::zeroed();
 
         let (width, height) = gargs.dimensions_2d()?;
-        let chain_length = args.value_of("chain").map(|s| s.parse().unwrap());
-        let cols = args.value_of("cols").map(|s| s.parse().unwrap());
-        let parallel = args.value_of("parallel").map(|s| s.parse().unwrap());
-        let rows = args.value_of("rows").map(|s| s.parse().unwrap());
+        let chain_length = args.get_one::<i32>("led-chain").copied();
+        let cols = args.get_one::<i32>("led-cols").copied();
+        let parallel = args.get_one::<i32>("led-parallel").copied();
+        let rows = args.get_one::<i32>("led-rows").copied();
         // X = cols * chain_length
         let (calc_cols, calc_chain_length) = match (cols, chain_length) {
             (Some(c), Some(l)) => (c, l),
@@ -148,44 +112,35 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         options.rows = calc_rows;
         options.parallel = calc_parallel;
 
-        let hwmap = args
-            .value_of("hardware-mapping")
-            .map(|s| CString::new(s).unwrap());
-        if let Some(s) = &hwmap {
+        if let Some(s) = args.get_one::<CString>("led-hardware-mapping") {
             options.hardware_mapping = s.as_ptr() as _;
         }
-        if let Some(v) = args.value_of("pwm-bits") {
-            let b = v
-                .parse()
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-            options.pwm_bits = b;
+        if let Some(b) = args.get_one::<i32>("led-pwm-bits") {
+            options.pwm_bits = *b;
         }
-        if let Some(v) = args.value_of("pwm-lsb-nanoseconds") {
-            let ns = v
-                .parse()
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?;
-            options.pwm_lsb_nanoseconds = ns;
+        if let Some(ns) = args.get_one::<i32>("led-pwm-lsb-nanoseconds") {
+            options.pwm_lsb_nanoseconds = *ns;
         }
-        options.pwm_dither_bits = match args.is_present("pwm-dither-bits") {
+        options.pwm_dither_bits = match args.get_flag("led-pwm-dither-bits") {
             true => 1,
             false => 0,
         };
-        if let Some(v) = args.value_of("scan-mode") {
-            options.scan_mode = match v {
+        if let Some(v) = args.get_one::<String>("led-scan-mode") {
+            options.scan_mode = match v.as_str() {
                 "0" | "progressive" => 0,
                 "1" | "interlaced" => 1,
                 _ => unreachable!(),
             };
         }
-        if let Some(v) = args.value_of("row-addr-type") {
-            options.row_address_type = match v {
+        if let Some(v) = args.get_one::<String>("led-row-addr-type") {
+            options.row_address_type = match v.as_str() {
                 "0" | "direct" => 0,
                 "1" | "ab" => 1,
                 _ => unreachable!(),
             };
         }
-        if let Some(v) = args.value_of("multiplexing") {
-            options.multiplexing = match v {
+        if let Some(v) = args.get_one::<String>("led-multiplexing") {
+            options.multiplexing = match v.as_str() {
                 "0" | "direct" => 0,
                 "1" | "stripe" => 1,
                 "2" | "checker" => 2,
@@ -194,10 +149,7 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
                 _ => unreachable!(),
             };
         }
-        let rgbseq = args
-            .value_of("rgb-sequence")
-            .map(|s| CString::new(s).unwrap());
-        if let Some(s) = &rgbseq {
+        if let Some(s) = args.get_one::<CString>("led-rgb-sequence") {
             options.led_rgb_sequence = s.as_ptr() as _;
         }
 

@@ -49,8 +49,8 @@ impl Device for Ws2812 {
     }
 }
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("ws2812")
+pub fn command() -> clap::Command {
+    clap::Command::new("ws2812")
 }
 
 pub fn from_command(_: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {

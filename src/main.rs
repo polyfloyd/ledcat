@@ -24,47 +24,21 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let mut cli = clap::App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about(env!("CARGO_PKG_DESCRIPTION"))
-        .arg(clap::Arg::with_name("output")
-            .short("o")
-            .long("output")
-            .takes_value(true)
-            .default_value("-")
-            .help("The output file to write to. Use - for stdout."))
-        .arg(clap::Arg::with_name("input")
-            .short("i")
-            .long("input")
-            .takes_value(true)
-            .min_values(1)
-            .multiple(true)
-            .default_value("-")
-            .help("The inputs to read from. Read the manual for how inputs are read and \
-                   prioritized."))
-        .arg(clap::Arg::with_name("exit")
-            .short("e")
-            .long("exit")
-            .takes_value(true)
-            .possible_values(&["never", "one", "all"])
-            .default_value("all")
-            .help("Set the exit condition. \"one\" and \"all\" indicate the number of files that \
-                should be closed to trigger"))
-        .arg(clap::Arg::with_name("clear-timeout")
-            .long("clear-timeout")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .conflicts_with("framerate")
-            .help("Sets a timeout in milliseconds after which partially read frames are deleted. \
-                   If a framerate is set, a timeout is calculated automatically."))
-        .arg(clap::Arg::with_name("geometry")
-            .short("g")
-            .long("geometry")
+    let mut cli = clap::command!()
+        .arg(clap::arg!(-o --output <file> "The output file to write to. Use - for stdout.")
+            .default_value("-"))
+        .arg(clap::arg!(-i --input <file> ... "The inputs to read from. Read the manual for how inputs are read and prioritized.")
+            .default_value("-"))
+        .arg(clap::arg!(-e --exit <value> "Set the exit condition. \"one\" and \"all\" indicate the number of files that should be closed to trigger")
+            .value_parser(["never", "one", "all"])
+            .default_value("all"))
+        .arg(clap::arg!(--"clear-timeout" <value> "Sets a timeout in milliseconds after which partially read frames are deleted. If a framerate is set, a timeout is calculated automatically.")
+            .value_parser(clap::value_parser!(u32))
+            .conflicts_with("framerate"))
+        .arg(clap::arg!(-g --geometry <value> "Specify the size of the display. Can be either a number for 1D, WxH for 2D, or \"env\" to load the LEDCAT_GEOMETRY environment variable.")
             .alias("num-pixels")
-            .takes_value(true)
             .default_value("env")
-            .validator(|val| {
+            .value_parser(|val: &str| {
                 if val == "env" {
                     return Ok(())
                 }
@@ -72,60 +46,22 @@ fn main() -> Result<(), Box<dyn Error>> {
                     Ok(_) => Ok(()),
                     Err(err) => Err(err),
                 }
-            })
-            .help("Specify the size of the display. Can be either a number for 1D, WxH for 2D, or\
-                  \"env\" to load the LEDCAT_GEOMETRY environment variable."))
-        .arg(clap::Arg::with_name("transpose")
-            .short("t")
-            .long("transpose")
-            .takes_value(true)
-            .min_values(1)
-            .multiple(true)
-            .possible_values(&["reverse", "zigzag_x", "zigzag_y", "mirror_x", "mirror_y"])
-            .help("Apply one or more transpositions to the output"))
-        .arg(clap::Arg::with_name("color-correction")
-            .short("c")
-            .long("color-correction")
-            .takes_value(true)
-            .possible_values(&["none", "srgb"])
-            .help("Override the default color correction. The default is determined per device."))
-        .arg(clap::Arg::with_name("dim")
-            .long("dim")
-            .takes_value(true)
+            }))
+        .arg(clap::arg!(-t --transpose <value> ... "Apply one or more transpositions to the output")
+            .value_parser(["reverse", "zigzag_x", "zigzag_y", "mirror_x", "mirror_y"]))
+        .arg(clap::arg!(-c --"color-correction" <value> "Override the default color correction. The default is determined per device.")
+            .value_parser(["none", "srgb"]))
+        .arg(clap::arg!(--dim <value> "Apply a global grayscale before the collor correction. The value should be between 0 and 1.0 inclusive")
             .default_value("1.0")
-            .validator(|v| {
-                let f = v.parse::<f32>()
-                    .map_err(|e| format!("{}", e))?;
-                if (0.0..=1.0).contains(&f) {
-                    Ok(())
-                } else {
-                    Err(format!("dim value out of range: {}", f))
-                }
-            })
-            .help("Apply a global grayscale before the collor correction. The value should be \
-                   between 0 and 1.0 inclusive"))
-        .arg(clap::Arg::with_name("driver")
-            .long("driver")
-            .takes_value(true)
-            .help("The driver to use for the output. If this is not specified, the driver is \
-                   automaticaly detected based on the output"))
-        .arg(clap::Arg::with_name("serial-baudrate")
-            .long("serial-baudrate")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .default_value("1152000")
-            .help("If serial is used as driver, use this to set the baudrate"))
-        .arg(clap::Arg::with_name("framerate")
-            .short("f")
-            .long("framerate")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .help("Limit the number of frames per second"))
-        .arg(clap::Arg::with_name("single-frame")
-            .short("1")
-            .long("one")
-            .conflicts_with("framerate")
-            .help("Send a single frame to the output and exit"));
+            .value_parser(clap::value_parser!(f32)))
+        .arg(clap::arg!(--driver <value> "The driver to use for the output. If this is not specified, the driver is automaticaly detected based on the output"))
+        .arg(clap::arg!(--"serial-baudrate" <value>  "If serial is used as driver, use this to set the baudrate")
+            .value_parser(clap::value_parser!(u32))
+            .default_value("1152000"))
+        .arg(clap::arg!(-f --framerate <value> "Limit the number of frames per second")
+            .value_parser(clap::value_parser!(u32)))
+        .arg(clap::arg!(-'1' --one "Send a single frame to the output and exit")
+            .conflicts_with("framerate"));
 
     let mut device_constructors = BTreeMap::new();
     for (command, from_command) in device::devices() {
@@ -134,18 +70,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     }
 
     let matches = cli.clone().get_matches();
-    let (sub_name, sub_matches) = matches.subcommand();
-    if sub_name.is_empty() {
-        let mut out = io::stderr();
-        cli.write_help(&mut out).unwrap();
-        eprintln!();
-        process::exit(1);
-    }
+    let (sub_name, sub_matches) = match matches.subcommand() {
+        Some(v) => v,
+        None => {
+            let mut out = io::stderr();
+            cli.write_help(&mut out).unwrap();
+            eprintln!();
+            process::exit(1);
+        }
+    };
 
     let gargs = GlobalArgs {
         output_file: {
-            let output = matches.value_of("output").unwrap();
-            PathBuf::from(match output {
+            let output = matches.get_one::<String>("output").unwrap();
+            PathBuf::from(match output.as_str() {
                 "-" => "/dev/stdout",
                 out => out,
             })
@@ -154,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         // not need it anyway.
         dimensions: {
             let env = env::var("LEDCAT_GEOMETRY");
-            match matches.value_of("geometry").unwrap() {
+            match matches.get_one::<String>("geometry").unwrap().as_str() {
                 "env" => match env.as_ref().map(|e| e.as_str()) {
                     Err(_) | Ok("") => None,
                     Ok(e) => Some(e),
@@ -165,11 +103,12 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     };
     let output: Box<dyn Output> = {
-        let from_command = device_constructors[sub_name](sub_matches.unwrap(), &gargs)?;
+        let from_command = device_constructors[sub_name](sub_matches, &gargs)?;
         match from_command {
             FromCommand::Device(dev) => {
                 let driver_name = matches
-                    .value_of("driver")
+                    .get_one::<String>("driver")
+                    .map(|s| s.as_str())
                     .or_else(|| driver::detect(&gargs.output_file))
                     .map(str::to_string)
                     .unwrap_or_else(|| "none".to_string());
@@ -187,12 +126,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                         Box::new(spidev::open(&gargs.output_file, conf).unwrap())
                     }
                     "serial" => {
-                        let baudrate = matches
-                            .value_of("serial-baudrate")
-                            .unwrap()
-                            .parse::<u32>()
-                            .unwrap();
-                        Box::new(serial::open(&gargs.output_file, baudrate).unwrap())
+                        let baudrate = matches.get_one::<u32>("serial-baudrate").unwrap();
+                        Box::new(serial::open(&gargs.output_file, *baudrate).unwrap())
                     }
                     d => return Err(GenericError::new(format!("unknown driver {}", d)).into()),
                 };
@@ -204,52 +139,49 @@ fn main() -> Result<(), Box<dyn Error>> {
     };
     let dimensions = gargs.dimensions()?;
 
-    let transposition = match matches.values_of("transpose") {
-        Some(v) => transposition_table(&dimensions, v),
+    let transposition = match matches.get_many::<String>("transpose") {
+        Some(v) => transposition_table(&dimensions, v.map(|s| s.as_str())),
         None => transposition_table(&dimensions, iter::empty()),
     }?;
     assert_eq!(dimensions.size(), transposition.len());
 
     let color_correction = matches
-        .value_of("color-correction")
+        .get_one::<String>("color-correction")
+        .map(String::as_str)
         .and_then(|name| match name {
             "none" => Some(Correction::none()),
             "srgb" => Some(Correction::srgb(255, 255, 255)),
             _ => None,
         })
         .unwrap_or_else(|| output.color_correction());
-    let dim = (matches.value_of("dim").unwrap().parse::<f32>().unwrap() * 255.0).round() as u8;
+    let dim = (matches.get_one::<f32>("dim").unwrap().clamp(0.0, 1.0) * 255.0).round() as u8;
 
     let frame_interval = matches
-        .value_of("framerate")
-        .map(|fps| Duration::from_secs(1) / fps.parse::<u32>().unwrap());
-    let single_frame = matches.is_present("single-frame");
+        .get_one::<u32>("framerate")
+        .map(|fps| Duration::from_secs(1) / *fps);
+    let single_frame = matches.get_flag("one");
 
     let input = {
         let exit_condition = {
-            match matches.value_of("exit") {
+            match matches.get_one::<String>("exit").map(String::as_str) {
                 Some("never") => select::ExitCondition::Never,
                 Some("one") => select::ExitCondition::OneClosed,
                 Some("all") | None => select::ExitCondition::AllClosed,
-                Some(e) => {
-                    return Err(
-                        GenericError::new(format!("invalid value for --exit: {}", e)).into(),
-                    )
-                }
+                Some(_) => unreachable!(),
             }
         };
         let files = matches
-            .values_of("input")
+            .get_many::<String>("input")
             .unwrap()
-            .map(|f| match f {
+            .map(|f| match f.as_str() {
                 "-" => "/dev/stdin",
                 f => f,
             })
             .collect();
         let clear_timeout = frame_interval.map(|t| t * 2).unwrap_or_else(|| {
             let ms = matches
-                .value_of("clear-timeout")
-                .map(|v| v.parse::<u32>().unwrap())
+                .get_one::<u32>("clear-timeout")
+                .copied()
                 .unwrap_or(100);
             Duration::from_millis(ms as u64)
         });

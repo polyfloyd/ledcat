@@ -16,49 +16,26 @@ use std::time;
 const DISCOVERY_PORT: u16 = 48899;
 const DISCOVERY_MAGIC: &[u8] = b"HF-A11ASSISTHREAD";
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("fluxled")
+pub fn command() -> clap::Command {
+    clap::Command::new("fluxled")
         .about("TODO")
-        .arg(
-            clap::Arg::with_name("target")
-                .short("t")
-                .long("target")
-                .takes_value(true)
-                .min_values(1)
-                .multiple(true)
-                .validator(|addr| match net::IpAddr::from_str(addr.as_str()) {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(format!("{} ({})", err, addr)),
-                })
-                .conflicts_with_all(&["discover"])
-                .help("One or more target IP addresses"),
-        )
-        .arg(
-            clap::Arg::with_name("discover")
-                .short("d")
-                .long("discover")
-                .conflicts_with_all(&["target"])
-                .help("Discover Flux-LED nodes"),
-        )
-        .arg(
-            clap::Arg::with_name("network")
-                .short("n")
-                .long("net")
-                .takes_value(true)
-                .requires_all(&["discover"])
-                .help("The network range of where to look for devices in CIDR format"),
-        )
+        .arg(clap::arg!(-t --target <value> ... )
+            .value_parser(clap::value_parser!(net::IpAddr))
+            .conflicts_with_all(&["discover"])
+            .help("One or more target IP addresses"))
+        .arg(clap::arg!(-d --discover "Discover Flux-LED nodes")
+            .conflicts_with_all(&["target"]))
+        .arg(clap::arg!(-n --net <value> "The network range of where to look for devices in CIDR format")
+            .value_parser(clap::value_parser!(Cidr))
+            .requires_all(&["discover"]))
 }
 
 pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<FromCommand> {
-    if args.is_present("discover") {
-        let network_range_rs = args
-            .value_of("network")
-            .map(|cidr| {
-                cidr.parse()
-                    .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
-            })
-            .unwrap_or_else(Cidr::default_interface);
+    if args.get_flag("discover") {
+        let network_range_rs = match args.get_one::<Cidr>("net").cloned() {
+            Some(v) => Ok(v),
+            None => Cidr::default_interface(),
+        };
         let network_range = match network_range_rs {
             Ok(cidr) => cidr,
             Err(err) => {
@@ -78,9 +55,9 @@ pub fn from_command(args: &clap::ArgMatches, _gargs: &GlobalArgs) -> io::Result<
     }
 
     let bulbs: Vec<_> = args
-        .values_of("target")
+        .get_many::<net::IpAddr>("target")
         .unwrap()
-        .map(|addr| Bulb::new(addr.parse().unwrap()))
+        .map(|addr| Bulb::new(*addr))
         .collect();
 
     let dev = Box::new(generic::Generic {
@@ -183,6 +160,7 @@ fn discover(
     rx
 }
 
+#[derive(Clone)]
 struct Cidr {
     addr: net::IpAddr,
     mask: net::IpAddr,

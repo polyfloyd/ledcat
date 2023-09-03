@@ -34,18 +34,15 @@ impl Device for Lpd8806 {
     }
 }
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("lpd8806").arg(
-        clap::Arg::with_name("spidev-clock")
-            .long("spidev-clock")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .default_value("500000")
-            .help("If spidev is used as driver, use this to set the clock frequency in Hertz"),
+pub fn command() -> clap::Command {
+    clap::Command::new("lpd8806").arg(
+        clap::arg!(--"spidev-clock" <value> "If spidev is used as driver, use this to set the clock frequency in Hertz")
+            .value_parser(clap::value_parser!(u32))
+            .default_value("500000"),
     )
 }
 
 pub fn from_command(args: &clap::ArgMatches, _: &GlobalArgs) -> io::Result<FromCommand> {
-    let spidev_clock = args.value_of("spidev-clock").unwrap().parse().unwrap();
+    let spidev_clock = *args.get_one::<u32>("spidev-clock").unwrap();
     Ok(FromCommand::Device(Box::new(Lpd8806 { spidev_clock })))
 }

@@ -3,7 +3,7 @@ fn calling_without_args() {
     assert_cli::Assert::main_binary()
         .fails()
         .stderr()
-        .contains("USAGE")
+        .contains("Usage")
         .stdout()
         .is("")
         .unwrap();

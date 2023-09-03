@@ -131,7 +131,7 @@ pub enum FromCommand {
 
 pub type FromCommandFn = fn(&clap::ArgMatches, &GlobalArgs) -> io::Result<FromCommand>;
 
-pub fn devices<'a, 'b>() -> Vec<(clap::App<'a, 'b>, FromCommandFn)> {
+pub fn devices() -> Vec<(clap::Command, FromCommandFn)> {
     vec![
         (apa102::command(), apa102::from_command),
         (artnet::command(), artnet::from_command),

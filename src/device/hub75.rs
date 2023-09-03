@@ -100,58 +100,40 @@ impl Output for Hub75 {
     }
 }
 
-pub fn command<'a, 'b>() -> clap::App<'a, 'b> {
-    clap::SubCommand::with_name("hub75")
+pub fn command() -> clap::Command {
+    let comma_separated = |s: &str| -> Result<(), std::num::ParseIntError> {
+        for v in s.split(',') {
+            v.parse::<u32>()?;
+        }
+        Ok(())
+    };
+    clap::Command::new("hub75")
         .about("Drive HUB75 LED-panels using GPIO")
-        .arg(clap::Arg::with_name("level-select")
-            .long("level-select")
-            .takes_value(true)
-            .validator(regex_validator!(r"^(?:[1-9]\d*,?)+$"))
-            .help("The GPIO-pins connected to the level select. These are typically labeled as A, B, C and D"))
-        .arg(clap::Arg::with_name("clock")
-            .long("clock")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .help("The GPIO-pin connected to the clock. Typically labeled as CLK"))
-        .arg(clap::Arg::with_name("latch")
-            .long("latch")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .help("The GPIO-pin connected to the latch. Typically labeled as LAT"))
-        .arg(clap::Arg::with_name("output-enable")
-            .long("output-enable")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .help("The GPIO-pin connected to the output-enable. Typically labeled as OE"))
-        .arg(clap::Arg::with_name("red")
-            .long("red")
-            .takes_value(true)
-            .validator(regex_validator!(r"^(?:[1-9]\d*,?)+$"))
-            .help("The GPIO-pins connected to the red data lines. Typically labeled as R1 and R2"))
-        .arg(clap::Arg::with_name("green")
-            .long("green")
-            .takes_value(true)
-            .validator(regex_validator!(r"^(?:[1-9]\d*,?)+$"))
-            .help("The GPIO-pins connected to the green data lines. Typically labeled as G1 and G2"))
-        .arg(clap::Arg::with_name("blue")
-            .long("blue")
-            .takes_value(true)
-            .validator(regex_validator!(r"^(?:[1-9]\d*,?)+$"))
-            .help("The GPIO-pins connected to the blue data lines. Typically labeled as B1 and B2"))
-        .arg(clap::Arg::with_name("pwm")
-            .long("pwm")
+        .arg(clap::arg!(--"level-select" <value> "The GPIO-pins connected to the level select. These are typically labeled as A, B, C and D")
+            .value_parser(comma_separated))
+        .arg(clap::arg!(--clock <value> "The GPIO-pin connected to the clock. Typically labeled as CLK")
+            .value_parser(clap::value_parser!(u32)))
+        .arg(clap::arg!(--latch <value> "The GPIO-pin connected to the latch. Typically labeled as LAT")
+            .value_parser(clap::value_parser!(u32)))
+        .arg(clap::arg!(--"output-enable" <value> "The GPIO-pin connected to the output-enable. Typically labeled as OE")
+            .value_parser(clap::value_parser!(u32)))
+        .arg(clap::arg!(--red <value> "The GPIO-pins connected to the red data lines. Typically labeled as R1 and R2")
+            .value_parser(comma_separated))
+        .arg(clap::arg!(--green <value> "The GPIO-pins connected to the green data lines. Typically labeled as G1 and G2")
+            .value_parser(comma_separated))
+        .arg(clap::arg!(--blue <value> "The GPIO-pins connected to the blue data lines. Typically labeled as B1 and B2")
+            .value_parser(comma_separated))
+        .arg(clap::arg!(--pwm <value> "The number of grayscale refreshes per frame that should be performed")
             .default_value("3")
-            .takes_value(true)
-            .validator(regex_validator!(r"^[1-9]\d*$"))
-            .help("The number of grayscale refreshes per frame that should be performed"))
+            .value_parser(clap::value_parser!(u8)))
 }
 
 pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
     let (width, height) = gargs.dimensions_2d()?;
 
-    let pwm_cycles = args.value_of("pwm").unwrap().parse().unwrap();
+    let pwm_cycles = *args.get_one::<u8>("pwm").unwrap();
     let pins = |name: &str| -> io::Result<Vec<_>> {
-        args.value_of(name)
+        args.get_one::<String>(name)
             .unwrap()
             .split(',')
             .map(|s| s.parse().unwrap())
