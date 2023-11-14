@@ -52,10 +52,10 @@ pub fn command() -> clap::Command {
 }
 
 pub fn from_command(_: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
-    let (width, height) = gargs.dimensions_2d()?;
+    let dimensions = gargs.dimensions()?;
     Ok(FromCommand::Output(Box::new(AnsiDisplay {
-        width,
-        height,
+        width: dimensions.w,
+        height: dimensions.h,
         initial_frame: true,
     })))
 }

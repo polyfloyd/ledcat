@@ -78,7 +78,7 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
     unsafe {
         let mut options: RGBLedMatrixOptions = mem::zeroed();
 
-        let (width, height) = gargs.dimensions_2d()?;
+        let dimensions = gargs.dimensions()?;
         let chain_length = args.get_one::<i32>("led-chain").copied();
         let cols = args.get_one::<i32>("led-cols").copied();
         let parallel = args.get_one::<i32>("led-parallel").copied();
@@ -86,8 +86,8 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         // X = cols * chain_length
         let (calc_cols, calc_chain_length) = match (cols, chain_length) {
             (Some(c), Some(l)) => (c, l),
-            (Some(c), None) => (c, width as i32 / c),
-            (None, Some(l)) => (width as i32 / l, l),
+            (Some(c), None) => (c, dimensions.w as i32 / c),
+            (None, Some(l)) => (dimensions.w as i32 / l, l),
             (None, None) => {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
@@ -164,8 +164,8 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         Ok(FromCommand::Output(Box::new(LedMatrix {
             led_matrix,
             backbuffer,
-            width,
-            height,
+            width: dimensions.w,
+            height: dimensions.h,
         })))
     }
 }

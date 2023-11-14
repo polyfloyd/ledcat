@@ -129,7 +129,7 @@ pub fn command() -> clap::Command {
 }
 
 pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<FromCommand> {
-    let (width, height) = gargs.dimensions_2d()?;
+    let dimensions = gargs.dimensions()?;
 
     let pwm_cycles = *args.get_one::<u8>("pwm").unwrap();
     let pins = |name: &str| -> io::Result<Vec<_>> {
@@ -146,15 +146,15 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
     let (err_tx, err_rx) = mpsc::channel();
 
     let mut worker = Worker {
-        width,
-        height,
+        width: dimensions.w,
+        height: dimensions.h,
         pwm_cycles,
         frame_rx,
-        cur_frame: vec![Pixel::default(); width * height],
+        cur_frame: vec![Pixel::default(); dimensions.size()],
         err_tx,
         level_select: {
             let p = pins("level-select")?;
-            if height % (1 << p.len()) != 0 {
+            if dimensions.h % (1 << p.len()) != 0 {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
                     "The height must be a multiple of 2^len(level-select-pins)",

@@ -97,16 +97,6 @@ impl GlobalArgs {
             )
         })
     }
-
-    pub fn dimensions_2d(&self) -> io::Result<(usize, usize)> {
-        match self.dimensions()? {
-            Dimensions::One(_) => Err(io::Error::new(
-                io::ErrorKind::Other,
-                "This device requires 2D geometry, use `WxH` as argument to --geometry",
-            )),
-            Dimensions::Two(w, h) => Ok((w, h)),
-        }
-    }
 }
 
 /// Device implemetations are expected to be accompanied by a function that constructs and

@@ -37,16 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             .conflicts_with("framerate"))
         .arg(clap::arg!(-g --geometry <value> "Specify the size of the display. Can be either a number for 1D, WxH for 2D, or \"env\" to load the LEDCAT_GEOMETRY environment variable.")
             .alias("num-pixels")
-            .default_value("env")
-            .value_parser(|val: &str| {
-                if val == "env" {
-                    return Ok(())
-                }
-                match val.parse::<Dimensions>() {
-                    Ok(_) => Ok(()),
-                    Err(err) => Err(err),
-                }
-            }))
+            .value_parser(clap::value_parser!(Dimensions)))
         .arg(clap::arg!(-t --transpose <value> ... "Apply one or more transpositions to the output")
             .value_parser(["reverse", "zigzag_x", "zigzag_y", "mirror_x", "mirror_y"]))
         .arg(clap::arg!(-c --"color-correction" <value> "Override the default color correction. The default is determined per device.")
@@ -90,17 +81,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
         // Don't require the display geomtry to be set just yet, a non-outputting subcommand may
         // not need it anyway.
-        dimensions: {
-            let env = env::var("LEDCAT_GEOMETRY");
-            match matches.get_one::<String>("geometry").unwrap().as_str() {
-                "env" => match env.as_ref().map(|e| e.as_str()) {
-                    Err(_) | Ok("") => None,
-                    Ok(e) => Some(e),
-                },
-                v => Some(v),
-            }
-            .and_then(|v| v.parse().ok())
-        },
+        dimensions: matches.get_one::<Dimensions>("geometry").copied(),
     };
     let output: Box<dyn Output> = {
         let from_command = device_constructors[sub_name](sub_matches, &gargs)?;
@@ -307,32 +288,29 @@ fn map_transposition(
     dimensions: &Dimensions,
     name: &str,
 ) -> Result<Box<dyn Transposition>, String> {
-    match (name, *dimensions) {
-        ("reverse", dim) => Ok(Box::new(Reverse { length: dim.size() })),
-        ("zigzag_x", Dimensions::Two(w, h)) | ("zigzag_y", Dimensions::Two(w, h)) => {
-            Ok(Box::new(Zigzag {
-                width: w,
-                height: h,
-                major_axis: match name.chars().last().unwrap() {
-                    'x' => Axis::X,
-                    'y' => Axis::Y,
-                    _ => unreachable!(),
-                },
-            }))
-        }
-        ("mirror_x", Dimensions::Two(w, h)) | ("mirror_y", Dimensions::Two(w, h)) => {
-            Ok(Box::new(Mirror {
-                width: w,
-                height: h,
-                axis: match name.chars().last().unwrap() {
-                    'x' => Axis::X,
-                    'y' => Axis::Y,
-                    _ => unreachable!(),
-                },
-            }))
-        }
-        (name, Dimensions::One(_)) => Err(format!("{} requires 2D geometry to be specified", name)),
-        (name, _) => Err(format!("unknown transposition: {}", name)),
+    match name {
+        "reverse" => Ok(Box::new(Reverse {
+            length: dimensions.size(),
+        })),
+        "zigzag_x" | "zigzag_y" => Ok(Box::new(Zigzag {
+            width: dimensions.w,
+            height: dimensions.h,
+            major_axis: match name.chars().last().unwrap() {
+                'x' => Axis::X,
+                'y' => Axis::Y,
+                _ => unreachable!(),
+            },
+        })),
+        "mirror_x" | "mirror_y" => Ok(Box::new(Mirror {
+            width: dimensions.w,
+            height: dimensions.h,
+            axis: match name.chars().last().unwrap() {
+                'x' => Axis::X,
+                'y' => Axis::Y,
+                _ => unreachable!(),
+            },
+        })),
+        name => Err(format!("unknown transposition: {}", name)),
     }
 }
 

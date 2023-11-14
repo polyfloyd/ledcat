@@ -2,17 +2,14 @@ use regex::Regex;
 use std::str;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Dimensions {
-    One(usize),
-    Two(usize, usize),
+pub struct Dimensions {
+    pub w: usize,
+    pub h: usize,
 }
 
 impl Dimensions {
     pub fn size(&self) -> usize {
-        match *self {
-            Dimensions::One(size) => size,
-            Dimensions::Two(w, h) => w * h,
-        }
+        self.w * self.h
     }
 }
 
@@ -22,12 +19,13 @@ impl str::FromStr for Dimensions {
         let d1 = Regex::new(r"^[1-9]\d*$").unwrap();
         let d2 = Regex::new(r"^([1-9]\d*)x([1-9]\d*)$").unwrap();
         if let Some(cap) = d1.captures(s) {
-            Ok(Dimensions::One(cap[0].parse().unwrap()))
+            let w = cap[0].parse().unwrap();
+            Ok(Dimensions { w, h: 1 })
         } else if let Some(cap) = d2.captures(s) {
-            Ok(Dimensions::Two(
-                cap[1].parse().unwrap(),
-                cap[2].parse().unwrap(),
-            ))
+            Ok(Dimensions {
+                w: cap[1].parse().unwrap(),
+                h: cap[2].parse().unwrap(),
+            })
         } else {
             Err(format!("can not parse \"{}\" into Dimensions", s))
         }
@@ -137,7 +135,10 @@ mod tests {
         assert!("0".parse::<Dimensions>().is_err());
         assert!("-42".parse::<Dimensions>().is_err());
         assert!("asdf".parse::<Dimensions>().is_err());
-        assert_eq!(Dimensions::One(42), "42".parse::<Dimensions>().unwrap());
+        assert_eq!(
+            Dimensions { w: 42, h: 1 },
+            "42".parse::<Dimensions>().unwrap()
+        );
     }
 
     #[test]
@@ -147,15 +148,15 @@ mod tests {
         assert!("-1x0".parse::<Dimensions>().is_err());
         assert!("-1x-1".parse::<Dimensions>().is_err());
         assert_eq!(
-            Dimensions::Two(4, 20),
+            Dimensions { w: 4, h: 20 },
             "4x20".parse::<Dimensions>().unwrap()
         );
     }
 
     #[test]
     fn dimensions_size() {
-        assert_eq!(42, Dimensions::One(42).size());
-        assert_eq!(80, Dimensions::Two(4, 20).size());
+        assert_eq!(42, Dimensions { w: 42, h: 1 }.size());
+        assert_eq!(80, Dimensions { w: 4, h: 20 }.size());
     }
 
     #[test]
