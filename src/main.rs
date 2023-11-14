@@ -119,12 +119,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                             .open(&gargs.output_file)
                             .unwrap(),
                     ),
-                    "spidev" => {
-                        let conf = dev
-                            .spidev_config()
-                            .ok_or(driver::Error::DeviceNotSupported)?;
-                        Box::new(spidev::open(&gargs.output_file, conf).unwrap())
-                    }
                     "serial" => {
                         let baudrate = matches.get_one::<u32>("serial-baudrate").unwrap();
                         Box::new(serial::open(&gargs.output_file, *baudrate).unwrap())

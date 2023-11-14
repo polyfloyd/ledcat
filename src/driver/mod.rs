@@ -5,11 +5,9 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 pub mod serial;
-pub mod spidev;
 
 #[allow(clippy::type_complexity)]
-const DRIVER_DETECTORS: &[(&str, fn(&Path) -> bool)] =
-    &[("serial", serial::is_serial), ("spidev", spidev::is_spidev)];
+const DRIVER_DETECTORS: &[(&str, fn(&Path) -> bool)] = &[("serial", serial::is_serial)];
 
 pub fn detect(file: impl AsRef<Path>) -> Option<&'static str> {
     let real_file = read_link_recursive(file).ok()?;
@@ -32,7 +30,6 @@ fn read_link_recursive(path: impl AsRef<Path>) -> io::Result<PathBuf> {
 
 #[derive(Debug)]
 pub enum Error {
-    DeviceNotSupported,
     Io(io::Error),
     Nix(nix::Error),
 }

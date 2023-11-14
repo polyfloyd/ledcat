@@ -1,22 +1,17 @@
 use crate::color::*;
-use crate::driver::*;
 use crate::geometry::*;
 use std::io;
 use std::ops::{Deref, DerefMut};
 use std::path::PathBuf;
 
-pub mod apa102;
 pub mod artnet;
 pub mod fluxled;
 pub mod generic;
 pub mod hexws2811;
 pub mod hub75;
-pub mod lpd8806;
 #[cfg(feature = "rpi-led-matrix")]
 pub mod rpi_led_matrix;
 pub mod simulator;
-pub mod sk9822;
-pub mod ws2812;
 
 /// An output represents the device that is used as output.
 ///
@@ -63,10 +58,6 @@ pub trait Device: Send {
 
     fn color_correction(&self) -> Correction {
         Correction::none()
-    }
-
-    fn spidev_config(&self) -> Option<spidev::Config> {
-        None
     }
 
     fn written_frame_size(&self, num_pixels: usize) -> usize {
@@ -133,17 +124,13 @@ pub type FromCommandFn = fn(&clap::ArgMatches, &GlobalArgs) -> io::Result<FromCo
 
 pub fn devices() -> Vec<(clap::Command, FromCommandFn)> {
     vec![
-        (apa102::command(), apa102::from_command),
         (artnet::command(), artnet::from_command),
         (fluxled::command(), fluxled::from_command),
         (generic::command(), generic::from_command),
         (hexws2811::command(), hexws2811::from_command),
         (hub75::command(), hub75::from_command),
-        (lpd8806::command(), lpd8806::from_command),
         #[cfg(feature = "rpi-led-matrix")]
         (rpi_led_matrix::command(), rpi_led_matrix::from_command),
         (simulator::command(), simulator::from_command),
-        (sk9822::command(), sk9822::from_command),
-        (ws2812::command(), ws2812::from_command),
     ]
 }
