@@ -1,19 +1,17 @@
 use crate::driver;
 use nix::sys::termios;
 use std::fs;
-use std::os::unix::io::AsRawFd;
 use std::path::Path;
 
 pub fn open(path: impl AsRef<Path>, baudrate: u32) -> Result<fs::File, driver::Error> {
     let tty = fs::OpenOptions::new().write(true).read(true).open(path)?;
-    let fd = tty.as_raw_fd();
-    let mut tio = termios::tcgetattr(fd)?;
+    let mut tio = termios::tcgetattr(&tty)?;
     tio.input_flags &= !(termios::InputFlags::ICRNL | termios::InputFlags::BRKINT);
     tio.output_flags &= !(termios::OutputFlags::OPOST | termios::OutputFlags::ONLCR);
     tio.local_flags &=
         !(termios::LocalFlags::ICANON | termios::LocalFlags::ISIG | termios::LocalFlags::ECHO);
     termios::cfsetspeed(&mut tio, map_baudrate(baudrate))?;
-    termios::tcsetattr(fd, termios::SetArg::TCSANOW, &tio)?;
+    termios::tcsetattr(&tty, termios::SetArg::TCSANOW, &tio)?;
     Ok(tty)
 }
 

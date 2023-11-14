@@ -3,6 +3,7 @@ mod bulb;
 use self::bulb::*;
 use crate::device::*;
 use net2::unix::UnixUdpBuilderExt;
+use nix::sys::socket::SockaddrStorage;
 use std::collections;
 use std::error;
 use std::io::{self, Write};
@@ -184,32 +185,35 @@ impl Cidr {
     #[cfg(target_os = "linux")]
     fn default_interface() -> io::Result<Cidr> {
         use nix::net::if_::InterfaceFlags;
-        use nix::sys::socket::{InetAddr, SockAddr};
+        use nix::sys::socket::{AddressFamily, SockaddrLike};
         nix::ifaddrs::getifaddrs()
             .map_err(|err| io::Error::new(io::ErrorKind::Other, err))?
-            // We need an interface with an address and mask configured.
-            .filter(|iface| iface.address.is_some() && iface.netmask.is_some())
             // Filter out loopback interfaces, those are not very useful for discovering remote
             // devices.
             .filter(|iface| !iface.flags.contains(InterfaceFlags::IFF_LOOPBACK))
             // Find an interface which is actually connected to something.
             .filter(|iface| iface.flags.contains(InterfaceFlags::IFF_LOWER_UP))
+            // We need an interface with an address and mask configured.
+            .filter_map(|iface| Some((iface.address?, iface.netmask?)))
             // Filter out IPv6-only interfaces, assume the devices we are trying to discover
             // are pieces of shit that only support IPv4.
-            .filter(|iface| matches!(iface.address, Some(SockAddr::Inet(InetAddr::V4(_)))))
+            .filter(|(addr, _mask)| addr.family() == Some(AddressFamily::Inet))
             // Convert the interface's address to CIDR notation.
-            .filter_map(|iface| {
-                let addr = match iface.address.unwrap() {
-                    SockAddr::Inet(a) => a.to_std().ip(),
-                    _ => return None,
+            .map(|(nix_addr, nix_mask)| {
+                let ip_from = |sock_addr_storage: SockaddrStorage| {
+                    let ip = sock_addr_storage.as_sockaddr_in().unwrap().ip();
+                    net::IpAddr::V4(net::Ipv4Addr::new(
+                        (ip >> 24) as u8,
+                        (ip >> 16) as u8,
+                        (ip >> 8) as u8,
+                        ip as u8,
+                    ))
                 };
-                let mask = match iface.netmask.unwrap() {
-                    SockAddr::Inet(a) => a.to_std().ip(),
-                    _ => return None,
-                };
-                Some(Cidr { addr, mask })
+                Cidr {
+                    addr: ip_from(nix_addr),
+                    mask: ip_from(nix_mask),
+                }
             })
-            // Pick the first interface that matches our criteria.
             .next()
             .ok_or_else(|| {
                 io::Error::new(io::ErrorKind::Other, "Unable to determine default network")

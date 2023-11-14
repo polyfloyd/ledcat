@@ -1,8 +1,8 @@
 use nix::{fcntl, poll};
 use std::fs;
 use std::io;
+use std::os::fd::{AsFd, AsRawFd, OwnedFd};
 use std::os::unix::fs::{FileTypeExt, OpenOptionsExt};
-use std::os::unix::io::AsRawFd;
 use std::path;
 use std::thread;
 use std::time;
@@ -14,14 +14,10 @@ pub enum ExitCondition {
     AllClosed,
 }
 
-pub trait ReadFd: io::Read + AsRawFd {}
-
-impl<T> ReadFd for T where T: io::Read + AsRawFd {}
-
 pub struct Reader {
     exit_condition: ExitCondition,
 
-    inputs: Vec<Box<dyn ReadFd + Send>>,
+    inputs: Vec<OwnedFd>,
     // The number of bytes after which another input is selected.
     switch_after: usize,
     // A buffer for each input to be used for partially received content.
@@ -42,7 +38,7 @@ impl Reader {
     where
         P: AsRef<path::Path>,
     {
-        let files: io::Result<Vec<Box<dyn ReadFd + Send>>> = filenames
+        let files: io::Result<Vec<OwnedFd>> = filenames
             .into_iter()
             .map(|filename| {
                 let mut open_opts = fs::OpenOptions::new();
@@ -68,7 +64,7 @@ impl Reader {
                 }
 
                 let file = open_opts.open(&filename)?;
-                Ok(Box::<dyn ReadFd + Send>::from(Box::new(file)))
+                Ok(file.into())
             })
             .collect();
         Ok(Reader::from(
@@ -80,7 +76,7 @@ impl Reader {
     }
 
     pub fn from(
-        inputs: Vec<Box<dyn ReadFd + Send>>,
+        inputs: Vec<OwnedFd>,
         switch_after: usize,
         exit_condition: ExitCondition,
         clear_timeout: Option<time::Duration>,
@@ -109,7 +105,7 @@ impl io::Read for Reader {
                 let mut poll_fds: Vec<_> = self
                     .inputs
                     .iter()
-                    .map(|inp| poll::PollFd::new(inp.as_raw_fd(), poll::PollFlags::POLLIN))
+                    .map(|inp| poll::PollFd::new(inp, poll::PollFlags::POLLIN))
                     .collect();
                 let timeout = self
                     .clear_timeout
@@ -136,7 +132,7 @@ impl io::Read for Reader {
                         // frame.
                         buf.resize(self.switch_after, 0);
 
-                        let nread = self.inputs[i].read(&mut buf[buf_used..])?;
+                        let nread = nix::unistd::read(p.as_fd().as_raw_fd(), &mut buf[buf_used..])?;
                         buf.resize(buf_used + nread, 0);
                         assert!(buf.len() <= self.switch_after);
                         if nread == 0 {
@@ -192,7 +188,6 @@ mod tests {
     use nix::unistd;
     use rand::distributions::{Alphanumeric, DistString};
     use std::io::{Read, Seek, Write};
-    use std::os::unix::io::FromRawFd;
     use std::sync::mpsc;
     use std::*;
     use tempfile::tempdir;
@@ -213,18 +208,18 @@ mod tests {
     }
 
     #[cfg(target_os = "linux")]
-    fn new_iter_reader(iter: impl Iterator<Item = u8>) -> Box<fs::File> {
+    fn new_iter_reader(iter: impl Iterator<Item = u8>) -> OwnedFd {
         use nix::sys::memfd::*;
         let mut rng = rand::thread_rng();
         let name = Alphanumeric.sample_string(&mut rng, 32);
         let cname = ffi::CString::new(name).unwrap();
         let fd = memfd_create(&cname, MemFdCreateFlag::empty()).unwrap();
-        let mut f = unsafe { fs::File::from_raw_fd(fd) };
+        let mut f = fs::File::from(fd);
         for b in iter {
             f.write_all(&[b]).unwrap();
         }
         f.seek(io::SeekFrom::Start(0)).unwrap();
-        Box::new(f)
+        f.into()
     }
 
     fn copy_iter(mut wr: impl io::Write, it: impl Iterator<Item = u8>) {
@@ -270,7 +265,7 @@ mod tests {
 
         let mut reader = Reader::from(
             (1..num + 1)
-                .map(|i| new_iter_reader(iter::repeat(i).take(len)) as Box<dyn ReadFd + Send>)
+                .map(|i| new_iter_reader(iter::repeat(i).take(len)))
                 .collect(),
             len,
             ExitCondition::AllClosed,

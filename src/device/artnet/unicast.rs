@@ -4,7 +4,7 @@ use nix::sys::socket;
 use std::io;
 use std::net;
 use std::net::ToSocketAddrs;
-use std::os::unix::io::FromRawFd;
+use std::os::fd::AsRawFd;
 use std::str;
 use std::sync;
 use std::thread;
@@ -151,6 +151,13 @@ where
 /// Like `UdpSocket::bind`, but sets the socket reuse flags before binding.
 fn reuse_bind(to_addr: impl net::ToSocketAddrs) -> io::Result<net::UdpSocket> {
     let addr = to_addr.to_socket_addrs()?.next().unwrap();
+    if addr.is_ipv6() {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "Artnet does not support IPv6 :(",
+        ));
+    }
+
     let fd = io_err!(socket::socket(
         socket::AddressFamily::Inet,
         socket::SockType::Datagram,
@@ -158,17 +165,11 @@ fn reuse_bind(to_addr: impl net::ToSocketAddrs) -> io::Result<net::UdpSocket> {
         socket::SockProtocol::Udp,
     ))?;
 
-    io_err!(socket::setsockopt(fd, socket::sockopt::ReuseAddr, &true))?;
-    io_err!(socket::setsockopt(fd, socket::sockopt::ReusePort, &true))?;
+    io_err!(socket::setsockopt(&fd, socket::sockopt::ReuseAddr, &true))?;
+    io_err!(socket::setsockopt(&fd, socket::sockopt::ReusePort, &true))?;
 
-    if addr.is_ipv6() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "Artnet does not support IPv6 :(",
-        ));
-    }
-    let sock_addr = socket::SockAddr::new_inet(socket::InetAddr::from_std(&addr));
-    io_err!(socket::bind(fd, &sock_addr))?;
+    let sock_addr = socket::SockaddrStorage::from(addr);
+    io_err!(socket::bind(fd.as_raw_fd(), &sock_addr))?;
 
-    Ok(unsafe { net::UdpSocket::from_raw_fd(fd) })
+    Ok(net::UdpSocket::from(fd))
 }
