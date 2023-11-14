@@ -17,7 +17,7 @@ jobs:
 
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - run: rustup update
     - run: cargo build
     - run: cargo test
@@ -25,6 +25,6 @@ jobs:
   style:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
+    - uses: actions/checkout@v4
     - run: cargo fmt -- --check
     - run: cargo clippy
