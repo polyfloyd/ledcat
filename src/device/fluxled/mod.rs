@@ -201,13 +201,7 @@ impl Cidr {
             // Convert the interface's address to CIDR notation.
             .map(|(nix_addr, nix_mask)| {
                 let ip_from = |sock_addr_storage: SockaddrStorage| {
-                    let ip = sock_addr_storage.as_sockaddr_in().unwrap().ip();
-                    net::IpAddr::V4(net::Ipv4Addr::new(
-                        (ip >> 24) as u8,
-                        (ip >> 16) as u8,
-                        (ip >> 8) as u8,
-                        ip as u8,
-                    ))
+                    net::IpAddr::V4(sock_addr_storage.as_sockaddr_in().unwrap().ip())
                 };
                 Cidr {
                     addr: ip_from(nix_addr),

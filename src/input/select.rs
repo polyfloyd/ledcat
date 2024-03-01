@@ -105,13 +105,11 @@ impl io::Read for Reader {
                 let mut poll_fds: Vec<_> = self
                     .inputs
                     .iter()
-                    .map(|inp| poll::PollFd::new(inp, poll::PollFlags::POLLIN))
+                    .map(|inp| poll::PollFd::new(inp.as_fd(), poll::PollFlags::POLLIN))
                     .collect();
                 let timeout = self
                     .clear_timeout
-                    .as_ref()
-                    .map(|t| t.as_secs() as i32 * 1_000 + t.subsec_nanos() as i32 / 1_000_000)
-                    .unwrap_or(-1);
+                    .and_then(|d| poll::PollTimeout::try_from(d).ok());
                 if io_err!(poll::poll(&mut poll_fds, timeout))? == 0 {
                     assert!(self.clear_timeout.is_some());
                     // Timeout expired, clear the input buffers.
