@@ -23,7 +23,7 @@ clap = { version = "4.4", features = [ "cargo" ] }
 gpio = "0.4"
 librgbmatrix-sys = { version = "0.9", optional = true }
 net2 = "0.2"
-nix = { version = "0.27", features = [ "fs", "term", "net", "poll" ] }
+nix = { version = "0.28", features = [ "fs", "term", "net", "poll" ] }
 regex = "1"
 
 [dev-dependencies]
