@@ -59,15 +59,6 @@ pub trait Device: Send {
     fn color_correction(&self) -> Correction {
         Correction::none()
     }
-
-    fn written_frame_size(&self, num_pixels: usize) -> usize {
-        let mut buf = Vec::new();
-        let dummy_frame: Vec<Pixel> = (0..num_pixels)
-            .map(|_| Pixel { r: 0, g: 0, b: 0 })
-            .collect();
-        self.write_frame(&mut buf, dummy_frame.as_slice()).unwrap();
-        buf.len()
-    }
 }
 
 impl<T> Device for Box<T>
