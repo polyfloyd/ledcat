@@ -100,8 +100,8 @@ pub fn from_command(args: &clap::ArgMatches, gargs: &GlobalArgs) -> io::Result<F
         // Y = rows * parallel
         let (calc_rows, calc_parallel) = match (rows, parallel) {
             (Some(r), Some(p)) => (r, p),
-            (Some(r), None) => (r, height as i32 / r),
-            (None, Some(p)) => (height as i32 / p, p),
+            (Some(r), None) => (r, dimensions.h as i32 / r),
+            (None, Some(p)) => (dimensions.w as i32 / p, p),
             (None, None) => {
                 return Err(io::Error::new(
                     io::ErrorKind::Other,
