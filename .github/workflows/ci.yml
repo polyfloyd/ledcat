@@ -14,14 +14,20 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os:
+          - ubuntu-latest
+          - macos-latest
+        include:
+          - os: ubuntu-latest
+            args: --all-features
+
 
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
     - run: rustup update
-    - run: cargo build
-    - run: cargo test
+    - run: cargo build ${{ matrix.args }}
+    - run: cargo test ${{ matrix.args }}
 
   style:
     runs-on: ubuntu-latest
