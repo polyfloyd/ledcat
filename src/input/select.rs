@@ -184,7 +184,7 @@ mod tests {
     use super::*;
     use nix::sys::stat::Mode;
     use nix::unistd;
-    use rand::distributions::{Alphanumeric, DistString};
+    use rand::distr::{Alphanumeric, SampleString};
     use std::io::{Read, Seek, Write};
     use std::sync::mpsc;
     use std::*;
@@ -208,8 +208,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     fn new_iter_reader(iter: impl Iterator<Item = u8>) -> OwnedFd {
         use nix::sys::memfd::*;
-        let mut rng = rand::thread_rng();
-        let name = Alphanumeric.sample_string(&mut rng, 32);
+        let name = Alphanumeric.sample_string(&mut rand::rng(), 32);
         let cname = ffi::CString::new(name).unwrap();
         let fd = memfd_create(&cname, MemFdCreateFlag::empty()).unwrap();
         let mut f = fs::File::from(fd);
