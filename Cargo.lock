@@ -387,9 +387,9 @@ dependencies = [
 
 [[package]]
 name = "librgbmatrix-sys"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecd18e5604675a8a47548fa9135863d3654fbf39e810e9470a93f83d091c280b"
+checksum = "95fdb9bbc3fdb2291249a7cdf77360399c0e550dae074117ae91d99a5305ccf8"
 dependencies = [
  "bindgen",
  "cc",
