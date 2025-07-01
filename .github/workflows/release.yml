@@ -61,7 +61,7 @@ jobs:
     - run: tar -czf ledcat-${{ matrix.target }}.tar.gz -C ./target/${{ matrix.target }}/release ledcat
 
     - name: Upload binary to release
-      uses: svenstaro/upload-release-action@2.9.0
+      uses: svenstaro/upload-release-action@2.11.1
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         file: ledcat-${{ matrix.target }}.tar.gz
